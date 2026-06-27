@@ -1,0 +1,4865 @@
+import React, { useState, useEffect, useContext } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  TextInput,
+  Image,
+  Alert,
+  ImageBackground,
+  ScrollView,
+  ActivityIndicator,
+  Modal,
+  Switch,
+  Linking,
+  useColorScheme,
+  KeyboardAvoidingView,
+  Platform,
+  FlatList,
+} from 'react-native';
+import { useNavigation, useRoute } from '@react-navigation/native';
+import * as ImagePicker from 'expo-image-picker';
+import * as Location from 'expo-location';
+import axios from 'axios';
+import { Ionicons, FontAwesome5, MaterialCommunityIcons } from '@expo/vector-icons';
+import { LanguageContext } from '../App';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { triggerDashboardUpdate } from '../utils/StorageEvents';
+const backgroundUri = 'https://as1.ftcdn.net/jpg/05/79/69/26/1000_F_579692640_wzM1k0l3e7AziBDpu7iAEVjZxzkzLrfH.jpg';
+export default function FoodInteractionScreen() {
+  const navigation = useNavigation();
+  const route = useRoute();
+  const colorScheme = useColorScheme();
+  const { language, setLanguage, t, isRTL } = useContext(LanguageContext);
+  const { userData = {}, isGuest = true } = route.params || {};
+  
+  // Initialize state with route params or default values
+  const [mode, setMode] = useState(null);
+  const [people, setPeople] = useState('');
+  const [isNew, setIsNew] = useState(null);
+  const [isConsumable, setIsConsumable] = useState(null);
+  const [location, setLocation] = useState('');
+  const [phone, setPhone] = useState('');
+  const [imageUri, setImageUri] = useState(null);
+  const [aiInput, setAiInput] = useState('');
+  const [aiResponse, setAiResponse] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [points, setPoints] = useState(route.params.points || 0);
+  const [requestReason, setRequestReason] = useState('');
+  const [requestPeople, setRequestPeople] = useState('');
+  const [settingsVisible, setSettingsVisible] = useState(false);
+  const [donationHistory, setDonationHistory] = useState(route.params.donationHistory || []);
+  const [activeSection, setActiveSection] = useState(null);
+  const [showPointsInfo, setShowPointsInfo] = useState(false);
+  const [showAppInfo, setShowAppInfo] = useState(false);
+  const [isEditingUser, setIsEditingUser] = useState(false);
+  const [profileImage, setProfileImage] = useState(null);
+  const [notificationsEnabled, setNotificationsEnabled] = useState(true);
+  const [darkMode, setDarkMode] = useState(false);
+  const [fontSize, setFontSize] = useState(16);
+  const [activeOrders, setActiveOrders] = useState(route.params.activeOrders || []);
+  const [showOrderDetails, setShowOrderDetails] = useState(false);
+  const [selectedOrder, setSelectedOrder] = useState(null);
+  const [showApprovalNotification, setShowApprovalNotification] = useState(false);
+  const [approvalMessage, setApprovalMessage] = useState('');
+  const [messages, setMessages] = useState(route.params.messages || []);
+  const [showMessageModal, setShowMessageModal] = useState(false);
+  const [selectedMessage, setSelectedMessage] = useState(null);
+  const [showCompleteGuide, setShowCompleteGuide] = useState(false);
+  
+  // New states for cooked/uncooked food
+  const [isCooked, setIsCooked] = useState(null);
+  const [uncookedType, setUncookedType] = useState('');
+  const [uncookedQuantity, setUncookedQuantity] = useState('');
+  const [uncookedUnit, setUncookedUnit] = useState('items');
+  const [customUncookedType, setCustomUncookedType] = useState(''); // New state for custom food type
+  
+  // New states for description and AI suggestion
+  const [description, setDescription] = useState('');
+  const [showAISuggestionModal, setShowAISuggestionModal] = useState(false);
+  const [aiSuggestion, setAiSuggestion] = useState('');
+  
+  // New states for location and map
+  const [showMapModal, setShowMapModal] = useState(false);
+  const [mapSearchQuery, setMapSearchQuery] = useState('');
+  const [locationLoading, setLocationLoading] = useState(false);
+  const [currentLocation, setCurrentLocation] = useState(null);
+  
+  // New state for AI photo analysis
+  const [aiPhotoLoading, setAiPhotoLoading] = useState(false);
+  
+  // New states for Reuse Food AI Assistant
+  const [reuseAiInput, setReuseAiInput] = useState('');
+  const [reuseAiResponse, setReuseAiResponse] = useState('');
+  const [reuseLoading, setReuseLoading] = useState(false);
+  const [reuseImageUri, setReuseImageUri] = useState(null);
+  
+  // New states for Food Cycle
+  const [showFoodCycleStepModal, setShowFoodCycleStepModal] = useState(false);
+  const [selectedFoodCycleStep, setSelectedFoodCycleStep] = useState(null);
+  
+  // New states for Rewards
+  const [rewardsVisible, setRewardsVisible] = useState(false);
+  const [selectedReward, setSelectedReward] = useState(null);
+  const [showRewardConfirmation, setShowRewardConfirmation] = useState(false);
+  const [showRewardSuccess, setShowRewardSuccess] = useState(false);
+  
+  const [editedUserData, setEditedUserData] = useState({
+    name: userData.name || '',
+    email: userData.email || '',
+    phone: userData.phone || '',
+    type: userData.type || '',
+    address: userData.address || '',
+  });
+  
+  // Rewards data
+  const rewards = [
+    { 
+      id: 1, 
+      name: "Lulu Hypermarket Discount", 
+      points: 100, 
+      description: "Get 20% discount on your next purchase at Lulu Hypermarket",
+      icon: "shopping-cart",
+      color: "#FF5722"
+    },
+    { 
+      id: 2, 
+      name: "Carrefour Voucher", 
+      points: 150, 
+      description: "Get AED 25 voucher for Carrefour",
+      icon: "ticket-alt",
+      color: "#2196F3"
+    },
+    { 
+      id: 3, 
+      name: "Spinneys Discount", 
+      points: 200, 
+      description: "Get 15% discount on your next purchase at Spinneys",
+      icon: "percent",
+      color: "#4CAF50"
+    },
+    { 
+      id: 4, 
+      name: "Amazon.ae Gift Card", 
+      points: 300, 
+      description: "Get AED 50 Amazon.ae gift card",
+      icon: "gift-card",
+      color: "#FF9800"
+    },
+    { 
+      id: 5, 
+      name: "Noon Voucher", 
+      points: 250, 
+      description: "Get AED 30 voucher for Noon",
+      icon: "tag",
+      color: "#9C27B0"
+    },
+    { 
+      id: 6, 
+      name: "Talabat Credit", 
+      points: 180, 
+      description: "Get AED 20 credit for Talabat food delivery",
+      icon: "utensils",
+      color: "#E91E63"
+    },
+    { 
+      id: 7, 
+      name: "Cinema Tickets", 
+      points: 350, 
+      description: "Get 2 cinema tickets at VOX or Reel Cinemas",
+      icon: "film",
+      color: "#3F51B5"
+    },
+    { 
+      id: 8, 
+      name: "IKEA Voucher", 
+      points: 400, 
+      description: "Get AED 50 voucher for IKEA",
+      icon: "couch",
+      color: "#009688"
+    },
+  ];
+  
+  // Food cycle steps data
+  const consumableFoodSteps = [
+    { 
+      id: 'consumable', 
+      title: 'Consumable Food', 
+      icon: 'utensils', 
+      color: '#4CAF50',
+      description: 'Consumable food includes both cooked and uncooked items that are safe for human consumption. This category covers freshly prepared meals, leftovers, and uncooked items like rice, flour, and canned goods. Through Tawfeer, these items are collected and redirected to those in need, ensuring no edible food goes to waste.'
+    },
+    { 
+      id: 'packaging', 
+      title: 'Packaging', 
+      icon: 'box', 
+      color: '#2196F3',
+      description: 'Proper packaging is essential for maintaining food quality during transportation. Food items are carefully packaged according to their type - cooked foods in sealed containers to prevent contamination, uncooked items in their original packaging or secure bags. This step ensures food remains fresh and safe for consumption.'
+    },
+    { 
+      id: 'distribution', 
+      title: 'Distribution', 
+      icon: 'truck', 
+      color: '#FF9800',
+      description: 'Our distribution network efficiently transports packaged food from donors to recipients. We coordinate with drivers and volunteers who pick up donations and deliver them to community centers, shelters, and directly to families. Temperature-controlled vehicles ensure food safety during transit.'
+    },
+    { 
+      id: 'to_needy', 
+      title: 'To Those in Need', 
+      icon: 'hands-helping', 
+      color: '#9C27B0',
+      description: 'The final step delivers food to individuals and families facing food insecurity. This includes low-income households, homeless individuals, elderly citizens, and communities affected by crises. By receiving nutritious food, beneficiaries can improve their quality of life and focus on other essential needs.'
+    }
+  ];
+  
+  const nonConsumableFoodSteps = [
+    { 
+      id: 'non_consumable', 
+      title: 'Non-Consumable Food', 
+      icon: 'trash-alt', 
+      color: '#F44336',
+      description: 'Non-consumable food includes food scraps, peels, bones, expired items, and other food waste that cannot be consumed by humans. Instead of being discarded in landfills, this waste is collected through Tawfeer and processed through sustainable methods to minimize environmental impact.'
+    },
+    { 
+      id: 'processing', 
+      title: 'Processing', 
+      icon: 'industry', 
+      color: '#795548',
+      description: 'Processing transforms non-consumable food waste into valuable resources. This includes composting for organic fertilizer, anaerobic digestion for biogas production, rendering for animal feed, and other innovative technologies. These processes convert waste into resources that support agriculture and energy production.'
+    },
+    { 
+      id: 'energy', 
+      title: 'Energy Production', 
+      icon: 'bolt', 
+      color: '#FFC107',
+      description: 'The final step converts processed food waste into renewable energy. Through anaerobic digestion, organic waste breaks down to produce biogas (methane) that can be used for heating, electricity generation, or as vehicle fuel. This renewable energy reduces dependence on fossil fuels and lowers greenhouse gas emissions.'
+    },
+    { 
+      id: 'recycling', 
+      title: 'Recycling', 
+      icon: 'recycle', 
+      color: '#009688',
+      description: 'Beyond energy production, processed food waste can be recycled into various products. This includes creating organic fertilizers for agriculture, animal feed supplements, bioplastics, and other materials. This circular approach ensures maximum value extraction from food waste while supporting sustainability goals.'
+    }
+  ];
+  
+ // Force light mode - ignore system preference
+useEffect(() => {
+    setDarkMode(false);
+    
+}, []);
+  // Load user data on component mount and when screen comes into focus
+  useEffect(() => {
+    loadUserData();
+    checkForApprovalNotification();
+    
+    // Add focus listener to refresh data when screen comes into focus
+    const unsubscribe = navigation.addListener('focus', () => {
+      loadUserData();
+      checkForApprovalNotification();
+    });
+    return unsubscribe;
+  }, [navigation]);
+  
+  // Request location permission on component mount
+  useEffect(() => {
+    (async () => {
+      let { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        console.log('Permission to access location was denied');
+        return;
+      }
+    })();
+  }, []);
+  
+  // Save user data when points or donation history changes
+  useEffect(() => {
+    saveUserData();
+  }, [points, donationHistory, activeOrders, messages]);
+  
+  // Load user data from AsyncStorage
+  const loadUserData = async () => {
+    try {
+      // First check if we have user data from route params
+      if (route.params.userData && !isGuest) {
+        const { userData } = route.params;
+        
+        // Try to load from AsyncStorage using user email
+        if (userData.email) {
+          const usersJson = await AsyncStorage.getItem('users');
+          if (usersJson) {
+            const users = JSON.parse(usersJson);
+            const user = users.find(u => u.email === userData.email);
+            
+            if (user) {
+              setPoints(user.points || 0);
+              setDonationHistory(user.donationHistory || []);
+              setActiveOrders(user.activeOrders || []);
+              setMessages(user.messages || []);
+              return;
+            }
+          }
+        }
+      }
+      
+      // If we have points and donation history from route params, use those
+      if (route.params.points !== undefined && route.params.donationHistory !== undefined) {
+        setPoints(route.params.points);
+        setDonationHistory(route.params.donationHistory);
+        setActiveOrders(route.params.activeOrders || []);
+        setMessages(route.params.messages || []);
+        return;
+      }
+      
+      // Otherwise, try to load from AsyncStorage using user email
+      if (userData.email) {
+        const usersJson = await AsyncStorage.getItem('users');
+        if (usersJson) {
+          const users = JSON.parse(usersJson);
+          const user = users.find(u => u.email === userData.email);
+          
+          if (user) {
+            setPoints(user.points || 0);
+            setDonationHistory(user.donationHistory || []);
+            setActiveOrders(user.activeOrders || []);
+            setMessages(user.messages || []);
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error loading user data:', error);
+    }
+  };
+  
+  // Check for approval notifications
+  const checkForApprovalNotification = async () => {
+    try {
+      if (userData.email) {
+        const usersJson = await AsyncStorage.getItem('users');
+        if (usersJson) {
+          const users = JSON.parse(usersJson);
+          const user = users.find(u => u.email === userData.email);
+          
+          if (user && user.activeOrders) {
+            // Check if any order was approved since last visit
+            const approvedOrders = user.activeOrders.filter(
+              order => order.status === 'approved' && order.justApproved
+            );
+            
+            if (approvedOrders.length > 0) {
+              // Get the most recently approved order
+              const latestOrder = approvedOrders.sort(
+                (a, b) => new Date(b.approvedAt) - new Date(a.approvedAt)
+              )[0];
+              
+              setApprovalMessage(`Your ${latestOrder.type} has been approved! Driver: ${latestOrder.driverName}`);
+              setShowApprovalNotification(true);
+              
+              // Mark orders as seen
+              const updatedOrders = user.activeOrders.map(order => ({
+                ...order,
+                justApproved: false
+              }));
+              
+              user.activeOrders = updatedOrders;
+              users[users.findIndex(u => u.email === userData.email)] = user;
+              await AsyncStorage.setItem('users', JSON.stringify(users));
+              
+              // Add message to messages list
+              const newMessage = {
+                id: Date.now(),
+                type: 'approval',
+                title: 'Order Approved',
+                content: `Your ${latestOrder.type} has been approved!`,
+                orderId: latestOrder.id,
+                timestamp: new Date().toISOString(),
+                read: false
+              };
+              
+              const updatedMessages = [...user.messages, newMessage];
+              user.messages = updatedMessages;
+              users[users.findIndex(u => u.email === userData.email)] = user;
+              await AsyncStorage.setItem('users', JSON.stringify(users));
+              
+              setMessages(updatedMessages);
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error checking for approval notifications:', error);
+    }
+  };
+  
+  // Save user data to AsyncStorage
+  const saveUserData = async () => {
+    try {
+      // If we have user email, save to their account
+      if (userData.email && !isGuest) {
+        const usersJson = await AsyncStorage.getItem('users');
+        if (usersJson) {
+          const users = JSON.parse(usersJson);
+          const userIndex = users.findIndex(u => u.email === userData.email);
+          
+          if (userIndex !== -1) {
+            // Update user's points and donation history
+            users[userIndex].points = points;
+            users[userIndex].donationHistory = donationHistory;
+            users[userIndex].activeOrders = activeOrders;
+            users[userIndex].messages = messages;
+            users[userIndex].lastUpdated = new Date().toISOString();
+            
+            // Save updated users array
+            await AsyncStorage.setItem('users', JSON.stringify(users));
+          }
+        }
+      }
+      
+      // Also save to current session data
+      const sessionData = {
+        points,
+        donationHistory,
+        activeOrders,
+        messages,
+        lastUpdated: new Date().toISOString(),
+      };
+      await AsyncStorage.setItem('userData', JSON.stringify(sessionData));
+    } catch (error) {
+      console.error('Error saving user data:', error);
+    }
+  };
+  
+  // Save donation data to dashboard
+  const saveDonationToDashboard = async (donation) => {
+    try {
+      // Get existing dashboard data
+      const dashboardDataJson = await AsyncStorage.getItem('dashboardData');
+      const dashboardData = dashboardDataJson ? JSON.parse(dashboardDataJson) : {
+        donations: [],
+        users: []
+      };
+      
+      // Add new donation with timestamp
+      dashboardData.donations.push({
+        id: donation.id,
+        date: donation.date,
+        type: 'donation',
+        userName: donation.userName,
+        userEmail: donation.userEmail,
+        foodType: donation.foodType,
+        weight: donation.weight,
+        people: donation.people,
+        status: donation.status,
+        timestamp: Date.now()
+      });
+      
+      // Save updated dashboard data
+      await AsyncStorage.setItem('dashboardData', JSON.stringify(dashboardData));
+      
+      // Trigger dashboard update
+      triggerDashboardUpdate();
+      
+      console.log('Donation saved to dashboard');
+    } catch (error) {
+      console.error('Error saving donation to dashboard:', error);
+    }
+  };
+  
+  // Handle section toggling
+  const toggleSection = (sectionName) => {
+    if (activeSection === sectionName) {
+      setActiveSection(null);
+    } else {
+      setActiveSection(sectionName);
+    }
+  };
+  
+  // Mark message as read
+  const markMessageAsRead = async (messageId) => {
+    const updatedMessages = messages.map(msg => 
+      msg.id === messageId ? { ...msg, read: true } : msg
+    );
+    setMessages(updatedMessages);
+    
+    // Update in AsyncStorage
+    if (userData.email && !isGuest) {
+      try {
+        const usersJson = await AsyncStorage.getItem('users');
+        if (usersJson) {
+          const users = JSON.parse(usersJson);
+          const userIndex = users.findIndex(u => u.email === userData.email);
+          
+          if (userIndex !== -1) {
+            users[userIndex].messages = updatedMessages;
+            await AsyncStorage.setItem('users', JSON.stringify(users));
+          }
+        }
+      } catch (error) {
+        console.error('Error updating messages:', error);
+      }
+    }
+  };
+  
+  // Handle marking order as done (no automatic points)
+  const handleMarkAsDone = async (orderId) => {
+    try {
+      // Remove the order from active orders
+      const updatedActiveOrders = activeOrders.filter(order => order.id !== orderId);
+      setActiveOrders(updatedActiveOrders);
+      
+      // Update AsyncStorage for active orders
+      if (userData.email && !isGuest) {
+        const usersJson = await AsyncStorage.getItem('users');
+        if (usersJson) {
+          const users = JSON.parse(usersJson);
+          const userIndex = users.findIndex(u => u.email === userData.email);
+          
+          if (userIndex !== -1) {
+            users[userIndex].activeOrders = updatedActiveOrders;
+            await AsyncStorage.setItem('users', JSON.stringify(users));
+          }
+        }
+      }
+      
+      // Also update session data
+      const sessionData = {
+        points,
+        donationHistory,
+        activeOrders: updatedActiveOrders,
+        messages,
+        lastUpdated: new Date().toISOString(),
+      };
+      await AsyncStorage.setItem('userData', JSON.stringify(sessionData));
+      
+      // Show confirmation
+      Alert.alert('Order Completed', 'Thank you for your contribution!');
+    } catch (error) {
+      console.error('Error marking order as done:', error);
+    }
+  };
+  
+  // Get current location
+  const getCurrentLocation = async () => {
+    setLocationLoading(true);
+    try {
+      let { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission Denied', 'Permission to access location was denied');
+        setLocationLoading(false);
+        return;
+      }
+      
+      let location = await Location.getCurrentPositionAsync({});
+      const { latitude, longitude } = location.coords;
+      
+      // Reverse geocoding to get address
+      let address = await Location.reverseGeocodeAsync({ latitude, longitude });
+      
+      if (address && address.length > 0) {
+        const currentAddress = `${address[0].street}, ${address[0].city}, ${address[0].region}`;
+        setLocation(currentAddress);
+        setCurrentLocation({ latitude, longitude, address: currentAddress });
+      } else {
+        setLocation(`Lat: ${latitude.toFixed(4)}, Lng: ${longitude.toFixed(4)}`);
+        setCurrentLocation({ latitude, longitude });
+      }
+    } catch (error) {
+      console.error('Error getting location:', error);
+      Alert.alert('Error', 'Failed to get current location');
+    } finally {
+      setLocationLoading(false);
+    }
+  };
+  
+  // Handle food cycle step click
+  const handleFoodCycleStepClick = (step) => {
+    setSelectedFoodCycleStep(step);
+    setShowFoodCycleStepModal(true);
+  };
+  
+  // Handle reward selection
+  const handleSelectReward = (reward) => {
+    if (points < reward.points) {
+      Alert.alert('Insufficient Points', `You need ${reward.points} points to redeem this reward. You currently have ${points} points.`);
+      return;
+    }
+    
+    setSelectedReward(reward);
+    setShowRewardConfirmation(true);
+  };
+  
+  // Confirm reward redemption
+  const confirmRewardRedemption = async () => {
+    try {
+      // Deduct points
+      const newPoints = points - selectedReward.points;
+      setPoints(newPoints);
+      
+      // Update in AsyncStorage
+      if (userData.email && !isGuest) {
+        const usersJson = await AsyncStorage.getItem('users');
+        if (usersJson) {
+          const users = JSON.parse(usersJson);
+          const userIndex = users.findIndex(u => u.email === userData.email);
+          
+          if (userIndex !== -1) {
+            users[userIndex].points = newPoints;
+            await AsyncStorage.setItem('users', JSON.stringify(users));
+          }
+        }
+      }
+      
+      // Close confirmation modal
+      setShowRewardConfirmation(false);
+      
+      // Show success modal
+      setShowRewardSuccess(true);
+      
+      // Reset selected reward
+      setSelectedReward(null);
+    } catch (error) {
+      console.error('Error redeeming reward:', error);
+      Alert.alert('Error', 'Failed to redeem reward. Please try again.');
+    }
+  };
+  
+  // Apply dark mode styles with RTL support
+  const dynamicStyles = {
+    background: { 
+      flex: 1, 
+      resizeMode: 'cover',
+      justifyContent: 'center',
+    },
+    container: { 
+      paddingTop: 60,       
+      paddingHorizontal: 20, 
+      paddingBottom: 20, 
+      backgroundColor: darkMode ? 'rgba(18,18,18,0.85)' : 'rgba(245,245,245,0.85)',
+      direction: isRTL ? 'rtl' : 'ltr',
+    },
+    topRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 15,
+    },
+    userSection: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      flex: 1,
+    },
+    settingsButton: {
+      marginRight: 10,
+      padding: 8,
+      borderRadius: 20,
+      backgroundColor: darkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)',
+    },
+    backButton: {
+      padding: 5,
+    },
+    spacer: {
+      width: 30,
+    },
+    pointsSection: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      flex: 1,
+      justifyContent: 'flex-end',
+    },
+    questionButton: {
+      marginLeft: 5,
+      backgroundColor: darkMode ? '#333' : '#e0e0e0',
+      borderRadius: 10,
+      width: 20,
+      height: 20,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    questionMark: {
+      fontSize: 12,
+      fontWeight: 'bold',
+      color: darkMode ? '#fff' : '#666',
+    },
+    userInfo: {
+      fontSize: 16,
+      fontWeight: '500',
+      color: darkMode ? '#fff' : '#333',
+      textAlign: isRTL ? 'right' : 'left',
+    },
+    points: { 
+      fontSize: 16, 
+      fontWeight: 'bold', 
+      color: darkMode ? '#4CAF50' : '#2e8b57',
+      textAlign: isRTL ? 'left' : 'right',
+    },
+    // Separator line
+    separator: {
+      borderBottomWidth: 1,
+      borderBottomColor: '#000',
+      marginVertical: 10,
+      opacity: 0.2,
+    },
+    // Recipe separator
+    recipeSeparator: {
+      height: 1,
+      backgroundColor: '#000',
+      marginVertical: 15,
+      opacity: 0.5,
+    },
+    // Professional App Header Styles
+    logoContainer: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginBottom: 15,
+      marginTop: 10,
+    },
+    logo: {
+      width: 42,
+      height: 42,
+      marginRight: 12,
+      backgroundColor: darkMode ? '#2E7D32' : '#2e8b57',
+      borderRadius: 21,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    appName: {
+      fontSize: 32,
+      fontWeight: 'bold',
+      color: darkMode ? '#4CAF50' : '#2e8b57',
+      letterSpacing: 1.5,
+      textTransform: 'uppercase',
+    },
+    appTagline: {
+      fontSize: 14,
+      color: darkMode ? '#aaa' : '#666',
+      fontStyle: 'italic',
+      marginBottom: 20,
+      textAlign: 'center',
+    },
+    title: {
+      fontSize: 22,
+      fontWeight: 'bold',
+      textAlign: 'center',
+      marginVertical: 20,
+      color: darkMode ? '#4CAF50' : '#2e8b57',
+    },
+    button: {
+      backgroundColor: '#2196F3',
+      padding: 15,
+      borderRadius: 10,
+      marginVertical: 10,
+      alignItems: 'center',
+    },
+    buttonText: { 
+      color: '#fff', 
+      fontWeight: 'bold',
+      fontSize: fontSize,
+      textAlign: 'center',
+    },
+    input: {
+      borderWidth: 1,
+      borderColor: darkMode ? '#444' : '#ccc',
+      borderRadius: 8,
+      padding: 12,
+      marginTop: 5,
+      marginBottom: 10,
+      backgroundColor: darkMode ? '#1E1E1E' : '#fff',
+      color: darkMode ? '#fff' : '#333',
+      fontSize: fontSize,
+      textAlign: isRTL ? 'right' : 'left',
+      writingDirection: isRTL ? 'rtl' : 'ltr',
+    },
+    question: { 
+      fontWeight: 'bold', 
+      marginTop: 10,
+      color: darkMode ? '#fff' : '#333',
+      fontSize: fontSize,
+      textAlign: isRTL ? 'right' : 'left',
+    },
+    switchRow: { 
+      flexDirection: 'row', 
+      justifyContent: 'space-between', 
+      marginBottom: 10 
+    },
+    switchButton: {
+      flex: 1,
+      padding: 12,
+      backgroundColor: darkMode ? '#333' : '#eee',
+      marginHorizontal: 5,
+      borderRadius: 8,
+      alignItems: 'center',
+    },
+    selected: { 
+      backgroundColor: darkMode ? '#2E7D32' : '#a5d6a7' 
+    },
+    photoButton: {
+      backgroundColor: darkMode ? '#333' : '#ddd',
+      padding: 12,
+      borderRadius: 8,
+      marginVertical: 5,
+      marginRight: 10,
+    },
+    preview: {
+      width: '100%',
+      height: 180,
+      borderRadius: 10,
+      marginVertical: 10,
+    },
+    submitButton: {
+      backgroundColor: darkMode ? '#2E7D32' : '#2e8b57',
+      padding: 15,
+      borderRadius: 10,
+      marginTop: 15,
+      alignItems: 'center',
+    },
+    submitText: { 
+      color: '#fff', 
+      fontWeight: 'bold',
+      fontSize: fontSize,
+      textAlign: 'center',
+    },
+    aiBox: {
+      marginTop: 30,
+      backgroundColor: darkMode ? '#1E1E1E' : '#fff',
+      padding: 15,
+      borderRadius: 12,
+      borderColor: darkMode ? '#444' : '#ccc',
+      borderWidth: 1,
+      marginBottom: 30,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: darkMode ? 0.2 : 0.1,
+      shadowRadius: 4,
+      elevation: 3,
+    },
+    aiButton: {
+      backgroundColor: '#2196F3',
+      padding: 12,
+      borderRadius: 8,
+      marginTop: 10,
+      alignItems: 'center',
+    },
+    aiResponse: { 
+      marginTop: 15, 
+      fontStyle: 'italic', 
+      color: darkMode ? '#ccc' : '#555',
+      fontSize: fontSize,
+      textAlign: isRTL ? 'right' : 'left',
+    },
+    
+    // Description container
+    descriptionContainer: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      marginBottom: 10,
+    },
+    descriptionButtonsContainer: {
+      flexDirection: 'row',
+      marginLeft: 10,
+    },
+    aiSuggestionButton: {
+      padding: 10,
+      backgroundColor: darkMode ? '#2C2C2C' : '#f0f0f0',
+      borderRadius: 8,
+      marginRight: 5,
+    },
+    
+    // Location container
+    locationContainer: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginBottom: 10,
+    },
+    locationButton: {
+      padding: 10,
+      marginLeft: 10,
+      backgroundColor: darkMode ? '#2C2C2C' : '#f0f0f0',
+      borderRadius: 8,
+    },
+    
+    // Process Tracker Styles
+    processTrackerContainer: {
+      marginTop: 20,
+      marginBottom: 30,
+    },
+    processTrackerTitle: {
+      fontSize: 18,
+      fontWeight: 'bold',
+      color: darkMode ? '#fff' : '#333',
+      marginBottom: 15,
+      textAlign: 'center',
+    },
+    processTracker: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      paddingHorizontal: 20,
+      marginBottom: 10,
+    },
+    processStepContainer: {
+      alignItems: 'center',
+      width: 80,
+    },
+    processStepCircle: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      justifyContent: 'center',
+      alignItems: 'center',
+      marginBottom: 5,
+    },
+    processStepActive: {
+      backgroundColor: '#4CAF50',
+    },
+    processStepPending: {
+      backgroundColor: '#ccc',
+    },
+    processStepCompleted: {
+      backgroundColor: '#2196F3',
+    },
+    processStepText: {
+      fontSize: 12,
+      color: darkMode ? '#fff' : '#333',
+      textAlign: 'center',
+    },
+    processLine: {
+      height: 2,
+      backgroundColor: '#ccc',
+      position: 'absolute',
+      top: 20,
+      left: 60,
+      right: 60,
+      zIndex: -1,
+    },
+    processLineActive: {
+      backgroundColor: '#4CAF50',
+    },
+    processLineCompleted: {
+      backgroundColor: '#2196F3',
+    },
+    
+    // Done Button Styles
+    doneButton: {
+      backgroundColor: '#4CAF50',
+      padding: 12,
+      borderRadius: 10,
+      alignItems: 'center',
+      marginTop: 15,
+    },
+    doneButtonText: {
+      color: '#fff',
+      fontWeight: 'bold',
+      fontSize: 16,
+    },
+    
+    // Active Orders Styles
+    activeOrdersContainer: {
+      marginTop: 20,
+      marginBottom: 20,
+    },
+    activeOrdersTitle: {
+      fontSize: 18,
+      fontWeight: 'bold',
+      color: darkMode ? '#fff' : '#333',
+      marginBottom: 15,
+      textAlign: 'center',
+    },
+    orderCard: {
+      backgroundColor: darkMode ? '#2C2C2C' : '#fff',
+      borderRadius: 12,
+      padding: 15,
+      marginBottom: 10,
+      borderWidth: 1,
+      borderColor: darkMode ? '#444' : '#eee',
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: darkMode ? 0.2 : 0.1,
+      shadowRadius: 4,
+      elevation: 3,
+    },
+    orderHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      marginBottom: 10,
+    },
+    orderTitle: {
+      fontSize: 16,
+      fontWeight: 'bold',
+      color: darkMode ? '#fff' : '#333',
+    },
+    orderDate: {
+      fontSize: 12,
+      color: darkMode ? '#999' : '#666',
+    },
+    orderDetails: {
+      marginTop: 10,
+    },
+    orderDetail: {
+      flexDirection: 'row',
+      marginBottom: 5,
+    },
+    orderLabel: {
+      fontSize: 14,
+      fontWeight: 'bold',
+      color: darkMode ? '#ccc' : '#666',
+      width: 100,
+    },
+    orderValue: {
+      fontSize: 14,
+      color: darkMode ? '#fff' : '#333',
+      flex: 1,
+    },
+    orderStatus: {
+      fontSize: 14,
+      fontWeight: 'bold',
+      marginTop: 10,
+      textAlign: 'right',
+    },
+    statusPending: {
+      color: '#FF9800',
+    },
+    statusApproved: {
+      color: '#4CAF50',
+    },
+    statusCompleted: {
+      color: '#2196F3',
+    },
+    statusRejected: {
+      color: '#F44336',
+    },
+    viewDetailsButton: {
+      backgroundColor: '#2196F3',
+      padding: 10,
+      borderRadius: 8,
+      alignItems: 'center',
+      marginTop: 10,
+    },
+    viewDetailsButtonText: {
+      color: '#fff',
+      fontWeight: 'bold',
+      fontSize: 14,
+    },
+    
+    // Order Details Modal Styles
+    orderDetailsModal: {
+      backgroundColor: darkMode ? '#1E1E1E' : 'white',
+      borderTopLeftRadius: 20,
+      borderTopRightRadius: 20,
+      padding: 20,
+      paddingBottom: 30,
+      maxHeight: '90%',
+    },
+    orderDetailsHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 20,
+      paddingBottom: 10,
+      borderBottomWidth: 1,
+      borderBottomColor: darkMode ? '#333' : '#eee',
+    },
+    orderDetailsTitle: {
+      fontSize: 20,
+      fontWeight: 'bold',
+      color: darkMode ? '#fff' : '#333',
+    },
+    orderDetailsContent: {
+      marginBottom: 20,
+    },
+    orderDetailsSection: {
+      marginBottom: 15,
+    },
+    orderDetailsSectionTitle: {
+      fontSize: 16,
+      fontWeight: 'bold',
+      color: darkMode ? '#fff' : '#333',
+      marginBottom: 10,
+    },
+    orderDetailsText: {
+      fontSize: 14,
+      color: darkMode ? '#ccc' : '#666',
+      marginBottom: 5,
+    },
+    orderDetailsImage: {
+      width: '100%',
+      height: 200,
+      borderRadius: 10,
+      marginBottom: 15,
+    },
+    
+    // Approval Notification Modal
+    approvalNotificationModal: {
+      backgroundColor: darkMode ? '#1E1E1E' : 'white',
+      borderRadius: 20,
+      padding: 25,
+      marginHorizontal: 20,
+      alignItems: 'center',
+    },
+    approvalNotificationTitle: {
+      fontSize: 20,
+      fontWeight: 'bold',
+      color: '#4CAF50',
+      marginBottom: 15,
+      textAlign: 'center',
+    },
+    approvalNotificationMessage: {
+      fontSize: 16,
+      color: darkMode ? '#fff' : '#333',
+      marginBottom: 20,
+      textAlign: 'center',
+    },
+    approvalNotificationButton: {
+      backgroundColor: '#4CAF50',
+      padding: 12,
+      borderRadius: 10,
+      width: '100%',
+      alignItems: 'center',
+    },
+    approvalNotificationButtonText: {
+      color: '#fff',
+      fontWeight: 'bold',
+      fontSize: 16,
+    },
+    
+    // Messages Styles
+    messagesSection: {
+      marginTop: 20,
+      marginBottom: 20,
+    },
+    messagesTitle: {
+      fontSize: 18,
+      fontWeight: 'bold',
+      color: darkMode ? '#fff' : '#333',
+      marginBottom: 15,
+      textAlign: 'center',
+    },
+    messageCard: {
+      backgroundColor: darkMode ? '#2C2C2C' : '#fff',
+      borderRadius: 12,
+      padding: 15,
+      marginBottom: 10,
+      borderWidth: 1,
+      borderColor: darkMode ? '#444' : '#eee',
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: darkMode ? 0.2 : 0.1,
+      shadowRadius: 4,
+      elevation: 3,
+    },
+    messageHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      marginBottom: 5,
+    },
+    messageTitle: {
+      fontSize: 16,
+      fontWeight: 'bold',
+      color: darkMode ? '#fff' : '#333',
+    },
+    messageDate: {
+      fontSize: 12,
+      color: darkMode ? '#999' : '#666',
+    },
+    messageContent: {
+      fontSize: 14,
+      color: darkMode ? '#ccc' : '#666',
+      marginBottom: 10,
+    },
+    unreadIndicator: {
+      width: 8,
+      height: 8,
+      borderRadius: 4,
+      backgroundColor: '#4CAF50',
+      position: 'absolute',
+      top: 10,
+      right: 10,
+    },
+    
+    // Message Details Modal
+    messageDetailsModal: {
+      backgroundColor: darkMode ? '#1E1E1E' : 'white',
+      borderTopLeftRadius: 20,
+      borderTopRightRadius: 20,
+      padding: 20,
+      paddingBottom: 30,
+      maxHeight: '80%',
+    },
+    messageDetailsHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 20,
+      paddingBottom: 10,
+      borderBottomWidth: 1,
+      borderBottomColor: darkMode ? '#333' : '#eee',
+    },
+    messageDetailsTitle: {
+      fontSize: 20,
+      fontWeight: 'bold',
+      color: darkMode ? '#fff' : '#333',
+    },
+    messageDetailsContent: {
+      marginBottom: 20,
+    },
+    messageDetailsSection: {
+      marginBottom: 15,
+    },
+    messageDetailsSectionTitle: {
+      fontSize: 16,
+      fontWeight: 'bold',
+      color: darkMode ? '#fff' : '#333',
+      marginBottom: 10,
+    },
+    messageDetailsText: {
+      fontSize: 14,
+      color: darkMode ? '#ccc' : '#666',
+      marginBottom: 5,
+    },
+    
+    // Modal Styles
+    modalOverlay: {
+      flex: 1,
+      backgroundColor: 'rgba(0,0,0,0.5)',
+      justifyContent: 'flex-end',
+    },
+    modalContent: {
+      width: '100%',
+      backgroundColor: darkMode ? '#1E1E1E' : 'white',
+      borderTopLeftRadius: 20,
+      borderTopRightRadius: 20,
+      padding: 20,
+      paddingBottom: 30,
+      elevation: 10,
+      maxHeight: '90%',
+    },
+    modalHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 20,
+      paddingBottom: 10,
+      borderBottomWidth: 1,
+      borderBottomColor: darkMode ? '#333' : '#eee',
+    },
+    modalTitle: {
+      fontSize: 22,
+      fontWeight: 'bold',
+      color: darkMode ? '#fff' : '#333',
+      textAlign: isRTL ? 'right' : 'left',
+    },
+    
+    // AI Suggestion Modal
+    aiSuggestionModal: {
+      backgroundColor: darkMode ? '#1E1E1E' : 'white',
+      borderTopLeftRadius: 20,
+      borderTopRightRadius: 20,
+      padding: 20,
+      paddingBottom: 30,
+      maxHeight: '50%',
+    },
+    aiSuggestionModalHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 20,
+      paddingBottom: 10,
+      borderBottomWidth: 1,
+      borderBottomColor: darkMode ? '#333' : '#eee',
+    },
+    aiSuggestionModalTitle: {
+      fontSize: 18,
+      fontWeight: 'bold',
+      color: darkMode ? '#fff' : '#333',
+    },
+    aiSuggestionModalContent: {
+      marginBottom: 20,
+    },
+    aiSuggestionText: {
+      fontSize: 16,
+      color: darkMode ? '#fff' : '#333',
+      marginBottom: 20,
+      lineHeight: 24,
+    },
+    useSuggestionButton: {
+      backgroundColor: '#2196F3',
+      padding: 12,
+      borderRadius: 10,
+      alignItems: 'center',
+    },
+    useSuggestionButtonText: {
+      color: '#fff',
+      fontWeight: 'bold',
+    },
+    
+    // Map Modal
+    mapModal: {
+      backgroundColor: darkMode ? '#1E1E1E' : 'white',
+      borderTopLeftRadius: 20,
+      borderTopRightRadius: 20,
+      padding: 20,
+      maxHeight: '90%',
+    },
+    mapModalHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 20,
+      paddingBottom: 10,
+      borderBottomWidth: 1,
+      borderBottomColor: darkMode ? '#333' : '#eee',
+    },
+    mapModalTitle: {
+      fontSize: 18,
+      fontWeight: 'bold',
+      color: darkMode ? '#fff' : '#333',
+    },
+    mapContainer: {
+      height: 300,
+      borderRadius: 10,
+      overflow: 'hidden',
+      marginBottom: 20,
+    },
+    mapPlaceholder: {
+      flex: 1,
+      backgroundColor: darkMode ? '#2C2C2C' : '#f0f0f0',
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    mapPlaceholderText: {
+      fontSize: 18,
+      fontWeight: 'bold',
+      color: darkMode ? '#999' : '#666',
+      marginTop: 10,
+    },
+    mapPlaceholderSubtext: {
+      fontSize: 14,
+      color: darkMode ? '#888' : '#999',
+      textAlign: 'center',
+      marginTop: 5,
+      paddingHorizontal: 20,
+    },
+    mapButtonsContainer: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      marginBottom: 20,
+    },
+    mapButtonOption: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: darkMode ? '#2C2C2C' : '#f0f0f0',
+      padding: 12,
+      borderRadius: 10,
+      width: '48%',
+    },
+    mapButtonText: {
+      fontSize: 14,
+      color: darkMode ? '#fff' : '#333',
+      marginLeft: 8,
+    },
+    mapInputContainer: {
+      flexDirection: 'row',
+      alignItems: 'center',
+    },
+    mapInput: {
+      flex: 1,
+      borderWidth: 1,
+      borderColor: darkMode ? '#444' : '#ddd',
+      borderRadius: 8,
+      padding: 12,
+      backgroundColor: darkMode ? '#1E1E1E' : '#fff',
+      color: darkMode ? '#fff' : '#333',
+      fontSize: fontSize,
+    },
+    mapConfirmButton: {
+      backgroundColor: '#2196F3',
+      padding: 12,
+      borderRadius: 8,
+      marginLeft: 10,
+    },
+    mapConfirmButtonText: {
+      color: '#fff',
+      fontWeight: 'bold',
+    },
+    
+    // Profile Section
+    profileSection: {
+      alignItems: 'center',
+      marginBottom: 25,
+    },
+    profileImageContainer: {
+      position: 'relative',
+      marginBottom: 10,
+    },
+    profileImage: {
+      width: 80,
+      height: 80,
+      borderRadius: 40,
+    },
+    profileImagePlaceholder: {
+      width: 80,
+      height: 80,
+      borderRadius: 40,
+      backgroundColor: darkMode ? '#333' : '#f0f0f0',
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    cameraButton: {
+      position: 'absolute',
+      bottom: 0,
+      right: 0,
+      backgroundColor: '#2196F3',
+      width: 28,
+      height: 28,
+      borderRadius: 14,
+      justifyContent: 'center',
+      alignItems: 'center',
+      borderWidth: 2,
+      borderColor: darkMode ? '#1E1E1E' : 'white',
+    },
+    profileName: {
+      fontSize: 18,
+      fontWeight: 'bold',
+      color: darkMode ? '#fff' : '#333',
+      textAlign: 'center',
+    },
+    profileType: {
+      fontSize: 14,
+      color: darkMode ? '#ccc' : '#666',
+      marginTop: 2,
+      textAlign: 'center',
+    },
+    
+    // Section Styles
+    sectionHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      padding: 12,
+      backgroundColor: darkMode ? '#2C2C2C' : '#f8f8f8',
+      borderRadius: 8,
+      justifyContent: 'space-between',
+      marginBottom: 5,
+    },
+    sectionTitle: {
+      fontWeight: 'bold',
+      fontSize: 16,
+      flex: 1,
+      marginLeft: 10,
+      color: darkMode ? '#fff' : '#333',
+      textAlign: isRTL ? 'right' : 'left',
+    },
+    cardContent: {
+      backgroundColor: darkMode ? '#2C2C2C' : '#f8f8f8',
+      padding: 15,
+      borderRadius: 8,
+      marginBottom: 15,
+    },
+    infoText: {
+      fontSize: fontSize,
+      marginBottom: 8,
+      color: darkMode ? '#fff' : '#333',
+      textAlign: isRTL ? 'right' : 'left',
+    },
+    infoTextSmall: {
+      fontSize: fontSize - 2,
+      color: darkMode ? '#ccc' : '#666',
+      marginBottom: 6,
+      textAlign: isRTL ? 'right' : 'left',
+    },
+    editLink: {
+      color: '#2196F3',
+      textAlign: 'center',
+      marginTop: 12,
+      fontWeight: '500',
+    },
+    infoTextItalic: {
+      fontStyle: 'italic',
+      color: darkMode ? '#999' : '#888',
+      marginBottom: 5,
+      textAlign: 'center',
+    },
+    editLabel: {
+      fontWeight: 'bold',
+      marginTop: 10,
+      marginBottom: 5,
+      color: darkMode ? '#fff' : '#333',
+      textAlign: isRTL ? 'right' : 'left',
+    },
+    editInput: {
+      borderWidth: 1,
+      borderColor: darkMode ? '#444' : '#ddd',
+      borderRadius: 8,
+      padding: 12,
+      marginBottom: 12,
+      backgroundColor: darkMode ? '#1E1E1E' : '#fff',
+      fontSize: fontSize,
+      color: darkMode ? '#fff' : '#333',
+      textAlign: isRTL ? 'right' : 'left',
+      writingDirection: isRTL ? 'rtl' : 'ltr',
+    },
+    editButtonsRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      marginTop: 15,
+    },
+    saveButton: {
+      backgroundColor: '#2e8b57',
+      paddingVertical: 10,
+      paddingHorizontal: 20,
+      borderRadius: 8,
+      flex: 0.45,
+    },
+    saveButtonText: {
+      color: '#fff',
+      fontWeight: 'bold',
+      textAlign: 'center',
+    },
+    cancelButton: {
+      backgroundColor: '#dc3545',
+      paddingVertical: 10,
+      paddingHorizontal: 20,
+      borderRadius: 8,
+      flex: 0.45,
+    },
+    cancelButtonText: {
+      color: '#fff',
+      fontWeight: 'bold',
+      textAlign: 'center',
+    },
+    
+    // Settings Styles
+    settingRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 15,
+    },
+    settingText: {
+      fontSize: fontSize,
+      color: darkMode ? '#fff' : '#333',
+      textAlign: isRTL ? 'right' : 'left',
+    },
+    settingDescription: {
+      fontSize: fontSize - 2,
+      color: darkMode ? '#ccc' : '#666',
+      marginTop: 5,
+      marginBottom: 10,
+      textAlign: isRTL ? 'right' : 'left',
+    },
+    sliderContainer: {
+      marginTop: 10,
+      marginBottom: 15,
+    },
+    sliderLabel: {
+      fontSize: fontSize - 2,
+      color: darkMode ? '#ccc' : '#666',
+      marginBottom: 10,
+      textAlign: 'center',
+    },
+    sliderTrack: {
+      height: 6,
+      backgroundColor: darkMode ? '#444' : '#ddd',
+      borderRadius: 3,
+      marginVertical: 10,
+    },
+    sliderProgress: {
+      height: 6,
+      backgroundColor: '#2196F3',
+      borderRadius: 3,
+      width: `${((fontSize - 12) / 8) * 100}%`,
+    },
+    sliderThumb: {
+      width: 20,
+      height: 20,
+      borderRadius: 10,
+      backgroundColor: '#2196F3',
+      position: 'absolute',
+      top: -7,
+      left: `${((fontSize - 12) / 8) * 100}%`,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.2,
+      shadowRadius: 2,
+      elevation: 2,
+    },
+    sliderButtonsRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      marginTop: 15,
+    },
+    sliderButton: {
+      paddingVertical: 8,
+      paddingHorizontal: 12,
+      borderRadius: 8,
+      backgroundColor: darkMode ? '#333' : '#f0f0f0',
+    },
+    sliderButtonText: {
+      color: darkMode ? '#fff' : '#333',
+      fontSize: fontSize - 2,
+    },
+    sliderButtonActive: {
+      backgroundColor: '#2196F3',
+    },
+    sliderButtonTextActive: {
+      color: '#fff',
+    },
+    
+    // Support Styles
+    supportButton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      padding: 12,
+      backgroundColor: darkMode ? '#2C2C2C' : '#fff',
+      borderRadius: 8,
+      marginBottom: 10,
+      borderWidth: 1,
+      borderColor: darkMode ? '#444' : '#eee',
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: darkMode ? 0.2 : 0.1,
+      shadowRadius: 2,
+      elevation: 2,
+    },
+    supportButtonText: {
+      fontSize: fontSize,
+      color: darkMode ? '#fff' : '#333',
+      marginLeft: 10,
+      textAlign: isRTL ? 'right' : 'left',
+    },
+    
+    // Logout Button
+    logoutButton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: '#F44336',
+      padding: 15,
+      borderRadius: 10,
+      marginTop: 10,
+      marginBottom: 20,
+    },
+    logoutButtonText: {
+      color: '#fff',
+      fontWeight: 'bold',
+      marginLeft: 8,
+      fontSize: fontSize,
+    },
+    
+    // Points Modal Styles
+    modalContainer: {
+      flex: 1,
+      backgroundColor: 'rgba(0,0,0,0.4)',
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    scrollContent: {
+      maxHeight: '80%',
+    },
+    pointsInfoText: {
+      fontSize: fontSize,
+      lineHeight: 22,
+      marginBottom: 15,
+      color: darkMode ? '#fff' : '#333',
+      textAlign: isRTL ? 'right' : 'left',
+    },
+    boldText: {
+      fontWeight: 'bold',
+      color: darkMode ? '#4CAF50' : '#2e8b57',
+    },
+    closeButton: {
+      backgroundColor: '#2196F3',
+      padding: 12,
+      borderRadius: 8,
+      marginTop: 15,
+      alignItems: 'center',
+    },
+    closeButtonText: {
+      color: '#fff',
+      fontWeight: 'bold',
+    },
+    sectionTitle: {
+      fontSize: fontSize + 2,
+      fontWeight: 'bold',
+      color: darkMode ? '#4CAF50' : '#2e8b57',
+      marginTop: 15,
+      marginBottom: 8,
+      textAlign: isRTL ? 'right' : 'left',
+    },
+    subTitle: {
+      fontSize: fontSize,
+      fontWeight: 'bold',
+      color: darkMode ? '#fff' : '#333',
+      marginTop: 10,
+      marginBottom: 5,
+      textAlign: isRTL ? 'right' : 'left',
+    },
+    infoText: {
+      fontSize: fontSize,
+      lineHeight: 20,
+      color: darkMode ? '#fff' : '#444',
+      marginBottom: 10,
+      textAlign: isRTL ? 'right' : 'left',
+    },
+    appGuideContainer: {
+      marginTop: 10,
+      backgroundColor: darkMode ? '#2C2C2C' : '#f8f9fa',
+      padding: 20,
+      borderRadius: 12,
+      borderColor: darkMode ? '#444' : '#e0e0e0',
+      borderWidth: 1,
+    },
+    guideTitle: {
+      fontSize: 22,
+      fontWeight: 'bold',
+      textAlign: 'center',
+      marginBottom: 20,
+      color: darkMode ? '#4CAF50' : '#2e8b57',
+    },
+    guideSectionTitle: {
+      fontSize: fontSize + 2,
+      fontWeight: 'bold',
+      color: darkMode ? '#4CAF50' : '#2e8b57',
+      marginTop: 20,
+      marginBottom: 10,
+      textAlign: isRTL ? 'right' : 'left',
+    },
+    guideSubTitle: {
+      fontSize: fontSize,
+      fontWeight: 'bold',
+      color: darkMode ? '#fff' : '#333',
+      marginTop: 15,
+      marginBottom: 8,
+      textAlign: isRTL ? 'right' : 'left',
+    },
+    guideText: {
+      fontSize: fontSize,
+      lineHeight: 22,
+      color: darkMode ? '#fff' : '#444',
+      marginBottom: 12,
+      textAlign: isRTL ? 'right' : 'left',
+    },
+    guideBoldText: {
+      fontWeight: 'bold',
+      color: darkMode ? '#4CAF50' : '#2e8b57',
+    },
+    guideButton: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      padding: 15,
+      backgroundColor: darkMode ? '#2C2C2C' : '#f8f9fa',
+      borderRadius: 12,
+      borderColor: darkMode ? '#444' : '#e0e0e0',
+      borderWidth: 1,
+      marginBottom: 10,
+    },
+    
+    // Donation History Detail Styles
+    donationDetailCard: {
+      backgroundColor: darkMode ? '#2C2C2C' : '#fff',
+      borderRadius: 12,
+      padding: 15,
+      marginBottom: 15,
+      borderWidth: 1,
+      borderColor: darkMode ? '#444' : '#eee',
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: darkMode ? 0.2 : 0.1,
+      shadowRadius: 4,
+      elevation: 3,
+    },
+    donationDetailHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      marginBottom: 10,
+    },
+    donationDetailTitle: {
+      fontSize: fontSize + 2,
+      fontWeight: 'bold',
+      color: darkMode ? '#fff' : '#333',
+      textAlign: isRTL ? 'right' : 'left',
+    },
+    donationDetailDate: {
+      fontSize: fontSize - 2,
+      color: darkMode ? '#999' : '#666',
+      textAlign: isRTL ? 'left' : 'right',
+    },
+    donationDetailRow: {
+      flexDirection: 'row',
+      marginBottom: 5,
+    },
+    donationDetailLabel: {
+      fontSize: fontSize - 1,
+      fontWeight: 'bold',
+      color: darkMode ? '#ccc' : '#666',
+      width: 120,
+      textAlign: isRTL ? 'right' : 'left',
+    },
+    donationDetailValue: {
+      fontSize: fontSize - 1,
+      color: darkMode ? '#fff' : '#333',
+      flex: 1,
+      textAlign: isRTL ? 'right' : 'left',
+    },
+    donationDetailStatus: {
+      fontSize: fontSize - 1,
+      fontWeight: 'bold',
+      color: '#4CAF50',
+      marginTop: 10,
+      textAlign: isRTL ? 'left' : 'right',
+    },
+    
+    // Uncooked Food Styles
+    uncookedTypeButton: {
+      backgroundColor: darkMode ? '#333' : '#eee',
+      padding: 12,
+      borderRadius: 8,
+      marginVertical: 5,
+      alignItems: 'center',
+    },
+    uncookedTypeSelected: {
+      backgroundColor: darkMode ? '#2E7D32' : '#a5d6a7',
+    },
+    uncookedTypeText: {
+      fontSize: fontSize,
+      color: darkMode ? '#fff' : '#333',
+    },
+    unitSelector: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      marginTop: 5,
+      marginBottom: 10,
+    },
+    unitButton: {
+      flex: 1,
+      padding: 8,
+      backgroundColor: darkMode ? '#333' : '#eee',
+      marginHorizontal: 2,
+      borderRadius: 6,
+      alignItems: 'center',
+    },
+    unitSelected: {
+      backgroundColor: darkMode ? '#2E7D32' : '#a5d6a7',
+    },
+    unitText: {
+      fontSize: fontSize - 2,
+      color: darkMode ? '#fff' : '#333',
+    },
+    
+    // Professional Button Styles
+    professionalButtonRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      marginVertical: 15,
+    },
+    professionalButton: {
+      flex: 1,
+      backgroundColor: darkMode ? '#1E88E5' : '#2196F3',
+      padding: 18,
+      borderRadius: 16,
+      marginHorizontal: 4,
+      alignItems: 'center',
+      elevation: 5,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 3 },
+      shadowOpacity: 0.2,
+      shadowRadius: 6,
+    },
+    professionalButtonText: {
+      color: '#fff',
+      fontWeight: 'bold',
+      fontSize: 16,
+      textAlign: 'center',
+    },
+    professionalButtonIcon: {
+      marginBottom: 10,
+    },
+    
+    // Reuse Food AI Assistant Styles
+    reuseAiContainer: {
+      marginTop: 20,
+      backgroundColor: darkMode ? '#1E1E1E' : '#fff',
+      padding: 15,
+      borderRadius: 12,
+      borderColor: darkMode ? '#444' : '#ccc',
+      borderWidth: 1,
+      marginBottom: 20,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: darkMode ? 0.2 : 0.1,
+      shadowRadius: 4,
+      elevation: 3,
+    },
+    reuseAiTitle: {
+      fontSize: 18,
+      fontWeight: 'bold',
+      color: darkMode ? '#4CAF50' : '#2e8b57',
+      marginBottom: 15,
+      textAlign: 'center',
+    },
+    reuseAiInputContainer: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginBottom: 10,
+    },
+    reuseAiInput: {
+      flex: 1,
+      borderWidth: 1,
+      borderColor: darkMode ? '#444' : '#ccc',
+      borderRadius: 8,
+      padding: 12,
+      backgroundColor: darkMode ? '#1E1E1E' : '#fff',
+      color: darkMode ? '#fff' : '#333',
+      fontSize: fontSize,
+      textAlign: isRTL ? 'right' : 'left',
+      writingDirection: isRTL ? 'rtl' : 'ltr',
+    },
+    reuseAiButton: {
+      backgroundColor: '#4CAF50',
+      padding: 12,
+      borderRadius: 8,
+      marginLeft: 10,
+    },
+    reusePhotoButton: {
+      backgroundColor: darkMode ? '#333' : '#ddd',
+      padding: 12,
+      borderRadius: 8,
+      marginVertical: 5,
+      marginRight: 10,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    reusePhotoButtonText: {
+      color: darkMode ? '#fff' : '#333',
+      marginLeft: 5,
+    },
+    reusePreview: {
+      width: '100%',
+      height: 180,
+      borderRadius: 10,
+      marginVertical: 10,
+    },
+    reuseAiResponse: { 
+      marginTop: 15, 
+      fontStyle: 'italic', 
+      color: darkMode ? '#ccc' : '#555',
+      fontSize: fontSize,
+      textAlign: isRTL ? 'right' : 'left',
+      lineHeight: 22,
+    },
+    reuseAiExamples: {
+      marginTop: 15,
+      marginBottom: 10,
+    },
+    reuseAiExampleText: {
+      fontSize: fontSize - 2,
+      color: darkMode ? '#999' : '#666',
+      fontStyle: 'italic',
+      marginBottom: 5,
+    },
+    
+    // Food Cycle Styles
+    foodCycleContainer: {
+      marginTop: 30,
+      marginBottom: 40,
+      padding: 20,
+      backgroundColor: darkMode ? 'rgba(30,30,30,0.8)' : 'rgba(255,255,255,0.8)',
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: darkMode ? '#444' : '#ddd',
+    },
+    foodCycleTitle: {
+      fontSize: 22,
+      fontWeight: 'bold',
+      color: darkMode ? '#4CAF50' : '#2e8b57',
+      textAlign: 'center',
+      marginBottom: 20,
+    },
+    foodCycleSubtitle: {
+      fontSize: 18,
+      fontWeight: 'bold',
+      color: darkMode ? '#fff' : '#333',
+      textAlign: 'center',
+      marginBottom: 15,
+      paddingVertical: 8,
+      paddingHorizontal: 15,
+      backgroundColor: darkMode ? 'rgba(76,175,80,0.2)' : 'rgba(46,139,87,0.1)',
+      borderRadius: 20,
+      alignSelf: 'center',
+    },
+    foodCycleIllustration: {
+      flexDirection: 'column',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+    },
+    foodCycleBranch: {
+      width: '100%',
+      marginBottom: 30,
+    },
+    foodCycleSequence: {
+      flexDirection: 'column',
+      alignItems: 'center',
+    },
+    foodCycleStepRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginBottom: 15,
+      width: '100%',
+    },
+    foodCycleStepNumber: {
+      width: 30,
+      height: 30,
+      borderRadius: 15,
+      backgroundColor: '#4CAF50',
+      justifyContent: 'center',
+      alignItems: 'center',
+      marginRight: 15,
+    },
+    foodCycleStepNumberText: {
+      color: '#fff',
+      fontWeight: 'bold',
+      fontSize: 16,
+    },
+    foodCycleStepContent: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: darkMode ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)',
+      borderRadius: 10,
+      padding: 12,
+      borderWidth: 1,
+      borderColor: darkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)',
+    },
+    foodCycleStepIcon: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      justifyContent: 'center',
+      alignItems: 'center',
+      marginRight: 12,
+    },
+    foodCycleText: {
+      fontSize: 14,
+      color: darkMode ? '#fff' : '#333',
+      fontWeight: '500',
+      flex: 1,
+    },
+    foodCycleArrow: {
+      width: 30,
+      height: 30,
+      justifyContent: 'center',
+      alignItems: 'center',
+      marginLeft: 15,
+    },
+    foodCycleStepModal: {
+      backgroundColor: darkMode ? '#1E1E1E' : 'white',
+      borderRadius: 20,
+      padding: 25,
+      marginHorizontal: 20,
+      maxHeight: '80%',
+    },
+    foodCycleStepModalHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 20,
+    },
+    foodCycleStepModalTitle: {
+      fontSize: 22,
+      fontWeight: 'bold',
+      color: darkMode ? '#fff' : '#333',
+    },
+    foodCycleStepModalContent: {
+      marginBottom: 20,
+    },
+    foodCycleStepModalDescription: {
+      fontSize: 16,
+      lineHeight: 24,
+      color: darkMode ? '#ccc' : '#666',
+      textAlign: 'justify',
+    },
+    
+    // Rewards Modal Styles
+    rewardsModal: {
+      backgroundColor: darkMode ? '#1E1E1E' : 'white',
+      borderTopLeftRadius: 20,
+      borderTopRightRadius: 20,
+      padding: 20,
+      paddingBottom: 30,
+      maxHeight: '90%',
+    },
+    rewardsModalHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 20,
+      paddingBottom: 10,
+      borderBottomWidth: 1,
+      borderBottomColor: darkMode ? '#333' : '#eee',
+    },
+    rewardsModalTitle: {
+      fontSize: 22,
+      fontWeight: 'bold',
+      color: darkMode ? '#FFC107' : '#FF9800',
+    },
+    rewardsPointsContainer: {
+      backgroundColor: darkMode ? 'rgba(255,193,7,0.2)' : 'rgba(255,152,0,0.1)',
+      padding: 15,
+      borderRadius: 12,
+      marginBottom: 20,
+      alignItems: 'center',
+    },
+    rewardsPointsText: {
+      fontSize: 18,
+      fontWeight: 'bold',
+      color: darkMode ? '#FFC107' : '#FF9800',
+    },
+    rewardsList: {
+      marginBottom: 20,
+    },
+    rewardCard: {
+      backgroundColor: darkMode ? '#2C2C2C' : '#fff',
+      borderRadius: 12,
+      padding: 15,
+      marginBottom: 15,
+      borderWidth: 1,
+      borderColor: darkMode ? '#444' : '#eee',
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: darkMode ? 0.2 : 0.1,
+      shadowRadius: 4,
+      elevation: 3,
+    },
+    rewardHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginBottom: 10,
+    },
+    rewardIconContainer: {
+      width: 50,
+      height: 50,
+      borderRadius: 25,
+      justifyContent: 'center',
+      alignItems: 'center',
+      marginRight: 15,
+    },
+    rewardTitleContainer: {
+      flex: 1,
+    },
+    rewardTitle: {
+      fontSize: 16,
+      fontWeight: 'bold',
+      color: darkMode ? '#fff' : '#333',
+    },
+    rewardPoints: {
+      fontSize: 14,
+      color: darkMode ? '#FFC107' : '#FF9800',
+      fontWeight: 'bold',
+    },
+    rewardDescription: {
+      fontSize: 14,
+      color: darkMode ? '#ccc' : '#666',
+      marginBottom: 10,
+    },
+    redeemButton: {
+      backgroundColor: '#FF9800',
+      padding: 10,
+      borderRadius: 8,
+      alignItems: 'center',
+    },
+    redeemButtonText: {
+      color: '#fff',
+      fontWeight: 'bold',
+      fontSize: 14,
+    },
+    redeemButtonDisabled: {
+      backgroundColor: '#ccc',
+    },
+    
+    // Reward Confirmation Modal
+    rewardConfirmationModal: {
+      backgroundColor: darkMode ? '#1E1E1E' : 'white',
+      borderRadius: 20,
+      padding: 25,
+      marginHorizontal: 20,
+      alignItems: 'center',
+    },
+    rewardConfirmationTitle: {
+      fontSize: 20,
+      fontWeight: 'bold',
+      color: darkMode ? '#FFC107' : '#FF9800',
+      marginBottom: 15,
+      textAlign: 'center',
+    },
+    rewardConfirmationMessage: {
+      fontSize: 16,
+      color: darkMode ? '#fff' : '#333',
+      marginBottom: 20,
+      textAlign: 'center',
+    },
+    rewardConfirmationButtons: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      width: '100%',
+    },
+    confirmButton: {
+      backgroundColor: '#FF9800',
+      padding: 12,
+      borderRadius: 10,
+      flex: 0.45,
+      alignItems: 'center',
+    },
+    confirmButtonText: {
+      color: '#fff',
+      fontWeight: 'bold',
+      fontSize: 16,
+    },
+    cancelButton: {
+      backgroundColor: '#F44336',
+      padding: 12,
+      borderRadius: 10,
+      flex: 0.45,
+      alignItems: 'center',
+    },
+    cancelButtonText: {
+      color: '#fff',
+      fontWeight: 'bold',
+      fontSize: 16,
+    },
+    
+    // Reward Success Modal
+    rewardSuccessModal: {
+      backgroundColor: darkMode ? '#1E1E1E' : 'white',
+      borderRadius: 20,
+      padding: 25,
+      marginHorizontal: 20,
+      alignItems: 'center',
+    },
+    rewardSuccessTitle: {
+      fontSize: 20,
+      fontWeight: 'bold',
+      color: '#4CAF50',
+      marginBottom: 15,
+      textAlign: 'center',
+    },
+    rewardSuccessMessage: {
+      fontSize: 16,
+      color: darkMode ? '#fff' : '#333',
+      marginBottom: 20,
+      textAlign: 'center',
+    },
+    rewardSuccessButton: {
+      backgroundColor: '#4CAF50',
+      padding: 12,
+      borderRadius: 10,
+      width: '100%',
+      alignItems: 'center',
+    },
+    rewardSuccessButtonText: {
+      color: '#fff',
+      fontWeight: 'bold',
+      fontSize: 16,
+    },
+  };
+  
+  const handleImagePick = async () => {
+    const result = await ImagePicker.launchImageLibraryAsync({ allowsEditing: true, quality: 1 });
+    if (!result.canceled) setImageUri(result.assets[0].uri);
+  };
+  
+  const handleTakePhoto = async () => {
+    const result = await ImagePicker.launchCameraAsync({ allowsEditing: true, quality: 1 });
+    if (!result.canceled) setImageUri(result.assets[0].uri);
+  };
+  
+  const handleProfileImagePick = async () => {
+    const result = await ImagePicker.launchImageLibraryAsync({ allowsEditing: true, quality: 1 });
+    if (!result.canceled) setProfileImage(result.assets[0].uri);
+  };
+  
+  // Handle taking photo for AI analysis
+  const handleTakePhotoForAI = async () => {
+    const result = await ImagePicker.launchCameraAsync({ allowsEditing: true, quality: 1 });
+    if (!result.canceled) {
+      setAiPhotoLoading(true);
+      // Simulate AI analysis
+      setTimeout(() => {
+        let aiAnalysis = '';
+        if (mode === 'donate') {
+          if (isCooked) {
+            aiAnalysis = `AI Analysis: This appears to be ${isNew ? 'freshly cooked' : 'leftover'} food suitable for ${people || '4'} people. 
+            ${isConsumable ? 'It is safe for human consumption.' : 'It is not suitable for human consumption.'}
+            Please handle with care and consume within 24 hours.`;
+          } else {
+            const actualUncookedType = uncookedType === 'Other' ? customUncookedType : uncookedType;
+            aiAnalysis = `AI Analysis: This appears to be ${actualUncookedType || 'uncooked food'} in the quantity of ${uncookedQuantity || '5'} ${uncookedUnit || 'items'}.
+            It is uncooked and sealed in original packaging. Suitable for ${people || '4'} people.`;
+          }
+        } else if (mode === 'request') {
+          aiAnalysis = `AI Analysis: This appears to be a request for food assistance for ${requestPeople || 'a family'}. 
+          ${requestReason || 'The reason is financial difficulties.'} 
+          Any non-perishable items would be greatly appreciated.`;
+        } else if (mode === 'reuse') {
+          const actualUncookedType = uncookedType === 'Other' ? customUncookedType : uncookedType;
+          aiAnalysis = `AI Analysis: This appears to be food that can be reused or repurposed. 
+          It can be transformed into new meals or ingredients for ${people || '4'} people.
+          Consider creative recipes that utilize these ${actualUncookedType || 'items'} efficiently.`;
+        }
+        setDescription(aiAnalysis);
+        setAiPhotoLoading(false);
+      }, 2000);
+    }
+  };
+  
+  const handleSubmitDonation = () => {
+    // Validate based on cooked or uncooked
+    if (isCooked === null) {
+      Alert.alert(t('missingInfo'), 'Please specify if the food is cooked or not');
+      return;
+    }
+    
+    if (isCooked) {
+      // Cooked food validation
+      if (!people || isNew === null || isConsumable === null || !location || !phone || !imageUri) {
+        Alert.alert(t('missingInfo'), t('pleaseFillAll'));
+        return;
+      }
+    } else {
+      // Uncooked food validation
+      if (!uncookedType || !uncookedQuantity || !people || !location || !phone || !imageUri) {
+        Alert.alert(t('missingInfo'), t('pleaseFillAll'));
+        return;
+      }
+      
+      // If "Other" is selected, validate custom type
+      if (uncookedType === 'Other' && !customUncookedType.trim()) {
+        Alert.alert('Missing Information', 'Please specify the type of uncooked food');
+        return;
+      }
+    }
+    
+    Alert.alert(t('donationSuccess'), t('donationSuccessMsg'));
+    
+    // Create order item with different properties based on cooked/uncooked
+    const orderItem = {
+      id: Date.now(),
+      type: 'donation',
+      people,
+      location,
+      phone,
+      date: new Date().toLocaleString(),
+      status: 'pending',
+      acknowledged: false,
+      estimatedPickup: '',
+      driverName: '',
+      driverPhone: '',
+      imageUri: imageUri,
+      userName: userData.name,
+      userEmail: userData.email,
+      isCooked: isCooked,
+      description: description, // Add description
+      coordinates: currentLocation, // Add coordinates
+      pointsAwarded: false, // Track if points have been awarded
+    };
+    
+    if (isCooked) {
+      // Cooked food properties
+      orderItem.isNew = isNew;
+      orderItem.isConsumable = isConsumable;
+      orderItem.foodType = isNew ? 'Prepared Food' : 'Leftovers';
+      orderItem.weight = Math.floor(Math.random() * 10) + 1 + ' kg';
+    } else {
+      // Uncooked food properties
+      const actualUncookedType = uncookedType === 'Other' ? customUncookedType : uncookedType;
+      orderItem.uncookedType = actualUncookedType;
+      orderItem.uncookedQuantity = uncookedQuantity;
+      orderItem.uncookedUnit = uncookedUnit;
+      orderItem.foodType = `${uncookedQuantity} ${uncookedUnit} of ${actualUncookedType}`;
+      orderItem.weight = uncookedQuantity + ' ' + uncookedUnit;
+    }
+    
+    // Add to active orders
+    setActiveOrders(prevOrders => [orderItem, ...prevOrders]);
+    
+    // Add to donation history with 0 points initially
+    const historyItem = {
+      ...orderItem,
+      pointsEarned: 0, // Points will be added when completed
+    };
+    setDonationHistory(prevHistory => [historyItem, ...prevHistory]);
+    
+    // Save donation to dashboard for government charts
+    saveDonationToDashboard({
+      ...orderItem,
+      timestamp: Date.now()
+    });
+    
+    // Reset form
+    setMode(null);
+    setPeople('');
+    setIsNew(null);
+    setIsConsumable(null);
+    setLocation('');
+    setPhone('');
+    setImageUri(null);
+    setIsCooked(null);
+    setUncookedType('');
+    setUncookedQuantity('');
+    setUncookedUnit('items');
+    setCustomUncookedType(''); // Reset custom type
+    setDescription(''); // Reset description
+    setCurrentLocation(null); // Reset current location
+  };
+  
+  const handleSubmitRequest = () => {
+    if (!requestReason || !location || !phone || !requestPeople) {
+      Alert.alert(t('missingInfo'), t('pleaseFillAll'));
+      return;
+    }
+    
+    Alert.alert(t('requestSuccess'), t('requestSuccessMsg'));
+    
+    const orderItem = {
+      id: Date.now(),
+      type: 'request',
+      people: requestPeople,
+      reason: requestReason,
+      location,
+      phone,
+      date: new Date().toLocaleString(),
+      status: 'pending',
+      acknowledged: false,
+      estimatedDelivery: '',
+      driverName: '',
+      driverPhone: '',
+      userName: userData.name,
+      userEmail: userData.email,
+      description: description, // Add description
+      coordinates: currentLocation, // Add coordinates
+    };
+    
+    // Add to active orders
+    setActiveOrders(prevOrders => [orderItem, ...prevOrders]);
+    
+    // Reset form
+    setMode(null);
+    setRequestReason('');
+    setRequestPeople('');
+    setLocation('');
+    setPhone('');
+    setDescription(''); // Reset description
+    setCurrentLocation(null); // Reset current location
+  };
+  
+  // Handle taking photo for Reuse AI
+  const handleReusePhoto = async () => {
+    const result = await ImagePicker.launchCameraAsync({ allowsEditing: true, quality: 1 });
+    if (!result.canceled) {
+      setReuseImageUri(result.assets[0].uri);
+    }
+  };
+  
+  // Handle selecting photo for Reuse AI
+  const handleReuseImagePick = async () => {
+    const result = await ImagePicker.launchImageLibraryAsync({ allowsEditing: true, quality: 1 });
+    if (!result.canceled) {
+      setReuseImageUri(result.assets[0].uri);
+    }
+  };
+  
+  // Handle Reuse AI request - Always returns professional recipes
+  const handleReuseAIRequest = async () => {
+    if (!reuseAiInput.trim()) {
+      Alert.alert('Empty Input', 'Please enter a question about reusing food');
+      return;
+    }
+    
+    try {
+      setReuseLoading(true);
+      setReuseAiResponse('');
+      
+      // Simulate API delay for better UX
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // Professional recipe response with separator
+      const professionalResponse = `Here are three recipes to reuse your food ingredients:\n\n` +
+        `1. 🍛 Asian-Style Chicken Fried Rice\n\n` +
+        `Ingredients:\n` +
+        `• 2 cups cooked rice (cold, leftover)\n` +
+        `• 1 cup shredded cooked chicken\n` +
+        `• ½ cup mixed vegetables (peas, carrots, bell peppers)\n` +
+        `• 2 eggs, lightly beaten\n` +
+        `• 2 tbsp soy sauce\n` +
+        `• 1 tbsp sesame oil (or olive oil)\n` +
+        `• 1 tsp minced garlic\n` +
+        `• 1 tsp grated ginger\n` +
+        `• Green onions for garnish\n\n` +
+        `Method:\n` +
+        `1. Heat sesame oil in a wok or skillet over medium-high heat.\n` +
+        `2. Add garlic, ginger, and vegetables; sauté until fragrant.\n` +
+        `3. Push vegetables to one side, pour eggs on the other side, and scramble.\n` +
+        `4. Add chicken and rice; stir-fry until heated through.\n` +
+        `5. Drizzle soy sauce, toss well, and finish with chopped green onions.\n\n` +
+        `Presentation: Serve in a shallow bowl, garnish with sesame seeds and a wedge of lime.\n\n` +
+        `||RECIPE_SEPARATOR||` +
+        `2. 🥘 Cheesy Baked Chicken & Rice Casserole\n\n` +
+        `Ingredients:\n` +
+        `• 2 cups cooked rice\n` +
+        `• 1 ½ cups shredded chicken\n` +
+        `• 1 cup steamed broccoli florets (or spinach)\n` +
+        `• 1 cup shredded cheddar cheese\n` +
+        `• 1 cup cream of mushroom soup (or béchamel sauce)\n` +
+        `• ½ cup milk\n` +
+        `• ½ tsp paprika\n` +
+        `• Salt & pepper to taste\n\n` +
+        `Method:\n` +
+        `1. Preheat oven to 180°C (350°F).\n` +
+        `2. In a large bowl, combine rice, chicken, vegetables, half the cheese, soup, milk, paprika, salt, and pepper.\n` +
+        `3. Transfer mixture into a greased baking dish.\n` +
+        `4. Top with remaining cheese.\n` +
+        `5. Bake for 20–25 minutes until golden and bubbling.\n\n` +
+        `Presentation: Serve in individual ramekins with a sprinkle of fresh parsley.\n\n` +
+        `||RECIPE_SEPARATOR||` +
+        `3. 🌯 Mediterranean Chicken Rice Wraps\n\n` +
+        `Ingredients:\n` +
+        `• Tortilla wraps or Arabic flatbread\n` +
+        `• 1 cup shredded chicken\n` +
+        `• 1 cup cooked rice\n` +
+        `• ½ cup chopped cucumber & tomato\n` +
+        `• ¼ cup shredded lettuce\n` +
+        `• 2 tbsp hummus or garlic sauce\n` +
+        `• 1 tbsp olive oil\n` +
+        `• Pinch of sumac or paprika\n\n` +
+        `Method:\n` +
+        `1. Warm tortillas on a skillet with olive oil.\n` +
+        `2. Spread a thin layer of hummus/garlic sauce.\n` +
+        `3. Add a spoonful of rice, chicken, and fresh vegetables.\n` +
+        `4. Sprinkle sumac or paprika for flavor.\n` +
+        `5. Roll tightly and slice diagonally.\n\n` +
+        `Presentation: Serve with a small bowl of yogurt dip or tzatziki on the side.`;
+      
+      setReuseAiResponse(professionalResponse);
+    } catch (error) {
+      console.error(error);
+      setReuseAiResponse('Something went wrong. Please try again.');
+    } finally {
+      setReuseLoading(false);
+    }
+  };
+  
+  const handleAIRequest = async () => {
+    if (!aiInput.trim()) {
+      Alert.alert(t('emptyInput'), t('pleaseEnterQuestion'));
+      return;
+    }
+    try {
+      setLoading(true);
+      setAiResponse('');
+      const response = await axios.post(
+        'https://api.openai.com/v1/chat/completions',
+        {
+          model: 'gpt-3.5-turbo',
+          messages: [
+            { role: 'system', content: 'You are a helpful cooking assistant.' },
+            { role: 'user', content: aiInput },
+          ],
+          temperature: 0.7,
+        },
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: 'Bearer YOUR_OPENAI_KEY',
+          },
+        }
+      );
+      const reply = response.data.choices[0].message.content;
+      setAiResponse(reply);
+    } catch (error) {
+      console.error(error);
+      setAiResponse(t('somethingWentWrong'));
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  // Generate AI suggestion for description
+  const generateAISuggestion = () => {
+    let suggestion = '';
+    
+    if (mode === 'donate') {
+      if (isCooked) {
+        suggestion = `Freshly cooked ${isNew ? 'meal' : 'leftovers'} suitable for ${people || '4'} people. 
+        ${isConsumable ? 'It is safe for human consumption.' : 'It is not suitable for human consumption.'}
+        Please handle with care and consume within 24 hours.`;
+      } else {
+        const actualUncookedType = uncookedType === 'Other' ? customUncookedType : uncookedType;
+        suggestion = `${uncookedQuantity || '5'} ${uncookedUnit} of ${actualUncookedType || 'rice'} available for donation. 
+        Uncooked and sealed in original packaging. Suitable for ${people || '4'} people.`;
+      }
+    } else if (mode === 'request') {
+      suggestion = `In need of food assistance for ${requestPeople || 'my family'}. 
+      ${requestReason || 'Facing financial difficulties.'} 
+      Any non-perishable items would be greatly appreciated.`;
+    } else if (mode === 'reuse') {
+      const actualUncookedType = uncookedType === 'Other' ? customUncookedType : uncookedType;
+      suggestion = `Food available for creative reuse or repurposing. 
+      ${isCooked ? 
+        (isNew ? 'Freshly prepared food' : 'Leftovers') + ` suitable for ${people || '4'} people.` :
+        `${uncookedQuantity || '5'} ${uncookedUnit} of ${actualUncookedType || 'ingredients'} that can be transformed into new dishes.`
+      }
+      Perfect for reducing waste through innovative cooking.`;
+    }
+    
+    setAiSuggestion(suggestion);
+    setShowAISuggestionModal(true);
+  };
+  
+  // Open Google Maps for location selection
+  const openGoogleMaps = () => {
+    const url = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(mapSearchQuery || 'food bank near me')}`;
+    Linking.openURL(url);
+  };
+  
+  // Use current location
+  const useCurrentLocation = () => {
+    if (currentLocation) {
+      setLocation(currentLocation.address || `Lat: ${currentLocation.latitude.toFixed(4)}, Lng: ${currentLocation.longitude.toFixed(4)}`);
+      setShowMapModal(false);
+    } else {
+      Alert.alert('No Location', 'Please get your current location first');
+    }
+  };
+  
+  // Logout function that clears only session data but preserves user data
+  const handleLogout = async () => {
+    try {
+      // Clear only session data, not account data
+      // We're not clearing activeOrders and messages from AsyncStorage
+      await AsyncStorage.removeItem('userData');
+      
+      // Reset local state for session-specific data
+      // But keep activeOrders and messages as they are saved in AsyncStorage
+      setProfileImage(null);
+      setCurrentLocation(null);
+      
+      // Close settings modal
+      setSettingsVisible(false);
+      
+      // Navigate to Welcome screen
+      navigation.reset({
+        index: 0,
+        routes: [{ name: 'Welcome' }],
+      });
+      
+      Alert.alert(t('logoutSuccess'), t('sessionCleared'));
+    } catch (error) {
+      console.error('Error during logout:', error);
+      Alert.alert(t('logoutError'), t('tryAgain'));
+    }
+  };
+  
+  const handleEditUser = () => {
+    setIsEditingUser(true);
+    setEditedUserData({
+      name: userData.name || '',
+      email: userData.email || '',
+      phone: userData.phone || '',
+      type: userData.type || '',
+      address: userData.address || '',
+    });
+  };
+  
+  const handleSaveUser = async () => {
+    try {
+      // Update local user data
+      Object.assign(userData, editedUserData);
+      setIsEditingUser(false);
+      
+      // Update user account in AsyncStorage
+      if (userData.email && !isGuest) {
+        const usersJson = await AsyncStorage.getItem('users');
+        if (usersJson) {
+          const users = JSON.parse(usersJson);
+          const userIndex = users.findIndex(u => u.email === userData.email);
+          
+          if (userIndex !== -1) {
+            users[userIndex].name = editedUserData.name;
+            users[userIndex].phone = editedUserData.phone;
+            users[userIndex].type = editedUserData.type;
+            users[userIndex].address = editedUserData.address;
+            users[userIndex].lastUpdated = new Date().toISOString();
+            
+            // Save updated users array
+            await AsyncStorage.setItem('users', JSON.stringify(users));
+          }
+        }
+      }
+      
+      Alert.alert(t('success'), t('accountUpdated'));
+    } catch (error) {
+      console.error('Error saving user information:', error);
+      Alert.alert(t('error'), t('tryAgain'));
+    }
+  };
+  
+  const handleCancelEdit = () => {
+    setIsEditingUser(false);
+    setEditedUserData({
+      name: userData.name || '',
+      email: userData.email || '',
+      phone: userData.phone || '',
+      type: userData.type || '',
+      address: userData.address || '',
+    });
+  };
+  
+  const handleContactSupport = () => {
+    Linking.openURL('mailto:support@tawfeer.ae?subject=Support%20Request&body=Hello%20Tawfeer%20Team,');
+  };
+  
+  const handleVisitWebsite = () => {
+    Linking.openURL('https://www.tawfeer.ae');
+  };
+  
+  const handleRateApp = () => {
+    Alert.alert('Rate Our App', 'Thank you for your feedback! This would open your app store in a real app.');
+  };
+  
+  const handleFontSizeChange = (size) => {
+    setFontSize(size);
+  };
+  
+  const handleViewOrderDetails = (order) => {
+    setSelectedOrder(order);
+    setShowOrderDetails(true);
+  };
+  
+  const handleMessageDetails = (message) => {
+    setSelectedMessage(message);
+    
+    // Mark message as read
+    const updatedMessages = messages.map(msg => 
+      msg.id === message.id ? { ...msg, read: true } : msg
+    );
+    setMessages(updatedMessages);
+    
+    // Update in AsyncStorage
+    if (userData.email && !isGuest) {
+      const updateMessagesInStorage = async () => {
+        try {
+          const usersJson = await AsyncStorage.getItem('users');
+          if (usersJson) {
+            const users = JSON.parse(usersJson);
+            const userIndex = users.findIndex(u => u.email === userData.email);
+            
+            if (userIndex !== -1) {
+              users[userIndex].messages = updatedMessages;
+              await AsyncStorage.setItem('users', JSON.stringify(users));
+            }
+          }
+        } catch (error) {
+          console.error('Error updating messages:', error);
+        }
+      };
+      
+      updateMessagesInStorage();
+    }
+    
+    setShowMessageModal(true);
+  };
+  
+  const renderProcessTracker = (order) => {
+    if (!order) return null;
+    
+    const steps = [
+      { id: 1, label: 'Submitted', active: true },
+      { id: 2, label: 'Approved', active: order.status === 'approved' || order.status === 'completed' },
+      { id: 3, label: 'Completed', active: order.status === 'completed' },
+    ];
+    
+    return (
+      <View style={dynamicStyles.processTrackerContainer}>
+        <Text style={dynamicStyles.processTrackerTitle}>Order Status</Text>
+        <View style={dynamicStyles.processTracker}>
+          <View style={[
+            dynamicStyles.processLine,
+            order.status === 'pending' && dynamicStyles.processLineActive,
+            order.status === 'completed' && dynamicStyles.processLineCompleted
+          ]} />
+          {steps.map((step, index) => (
+            <View key={step.id} style={dynamicStyles.processStepContainer}>
+              <View style={[
+                dynamicStyles.processStepCircle,
+                step.active ? dynamicStyles.processStepActive : dynamicStyles.processStepPending,
+                order.status === 'completed' && step.active && dynamicStyles.processStepCompleted
+              ]}>
+                <Text style={dynamicStyles.processStepText}>{step.id}</Text>
+              </View>
+              <Text style={dynamicStyles.processStepText}>{step.label}</Text>
+            </View>
+          ))}
+        </View>
+        
+        {/* Show Done button for completed orders that haven't been acknowledged */}
+        {order.status === 'completed' && !order.acknowledged && (
+          <TouchableOpacity 
+            style={dynamicStyles.doneButton}
+            onPress={() => handleMarkAsDone(order.id)}
+          >
+            <Text style={dynamicStyles.doneButtonText}>Done</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+    );
+  };
+  
+  const renderOrderItem = ({ item }) => {
+    let statusStyle = dynamicStyles.statusPending;
+    let statusText = 'Pending';
+    
+    if (item.status === 'approved') {
+      statusStyle = dynamicStyles.statusApproved;
+      statusText = 'Approved';
+    } else if (item.status === 'completed') {
+      statusStyle = dynamicStyles.statusCompleted;
+      statusText = 'Completed';
+    } else if (item.status === 'rejected') {
+      statusStyle = dynamicStyles.statusRejected;
+      statusText = 'Rejected';
+    }
+    
+    return (
+      <TouchableOpacity 
+        style={dynamicStyles.orderCard} 
+        onPress={() => handleViewOrderDetails(item)}
+      >
+        <View style={dynamicStyles.orderHeader}>
+          <Text style={dynamicStyles.orderTitle}>
+            {item.type === 'donation' ? 'Donation' : 
+             item.type === 'request' ? 'Request' : 'Reuse'} #{item.id}
+          </Text>
+          <Text style={dynamicStyles.orderDate}>{item.date}</Text>
+        </View>
+        
+        <View style={dynamicStyles.orderDetails}>
+          <View style={dynamicStyles.orderDetail}>
+            <Text style={dynamicStyles.orderLabel}>Type:</Text>
+            <Text style={dynamicStyles.orderValue}>
+              {item.type === 'donation' ? 'Food Donation' : 
+               item.type === 'request' ? 'Food Request' : 'Food Reuse'}
+            </Text>
+          </View>
+          
+          {item.type === 'donation' && (
+            <View style={dynamicStyles.orderDetail}>
+              <Text style={dynamicStyles.orderLabel}>Food Type:</Text>
+              <Text style={dynamicStyles.orderValue}>{item.foodType}</Text>
+            </View>
+          )}
+          
+          {item.type === 'request' && (
+            <View style={dynamicStyles.orderDetail}>
+              <Text style={dynamicStyles.orderLabel}>Reason:</Text>
+              <Text style={dynamicStyles.orderValue}>{item.reason}</Text>
+            </View>
+          )}
+          
+          {item.type === 'reuse' && (
+            <View style={dynamicStyles.orderDetail}>
+              <Text style={dynamicStyles.orderLabel}>Reuse Type:</Text>
+              <Text style={dynamicStyles.orderValue}>{item.foodType}</Text>
+            </View>
+          )}
+          
+          <View style={dynamicStyles.orderDetail}>
+            <Text style={dynamicStyles.orderLabel}>People:</Text>
+            <Text style={dynamicStyles.orderValue}>{item.people}</Text>
+          </View>
+          
+          <View style={dynamicStyles.orderDetail}>
+            <Text style={dynamicStyles.orderLabel}>Location:</Text>
+            <Text style={dynamicStyles.orderValue}>{item.location}</Text>
+          </View>
+          
+          {/* Show points only if they've been awarded */}
+          {item.type === 'donation' && item.pointsAwarded && (
+            <View style={dynamicStyles.orderDetail}>
+              <Text style={dynamicStyles.orderLabel}>Points:</Text>
+              <Text style={dynamicStyles.orderValue}>+{item.pointsEarned || 0}</Text>
+            </View>
+          )}
+          
+          <Text style={[dynamicStyles.orderStatus, statusStyle]}>{statusText}</Text>
+        </View>
+        
+        <TouchableOpacity style={dynamicStyles.viewDetailsButton}>
+          <Text style={dynamicStyles.viewDetailsButtonText}>View Details</Text>
+        </TouchableOpacity>
+      </TouchableOpacity>
+    );
+  };
+  
+  const renderMessageItem = ({ item }) => (
+    <TouchableOpacity 
+      style={dynamicStyles.messageCard} 
+      onPress={() => handleMessageDetails(item)}
+    >
+      {!item.read && <View style={dynamicStyles.unreadIndicator} />}
+      <View style={dynamicStyles.messageHeader}>
+        <Text style={dynamicStyles.messageTitle}>{item.title}</Text>
+        <Text style={dynamicStyles.messageDate}>
+          {new Date(item.timestamp).toLocaleDateString()}
+        </Text>
+      </View>
+      <Text style={dynamicStyles.messageContent}>{item.content}</Text>
+    </TouchableOpacity>
+  );
+  
+  const renderMessageDetailsModal = () => (
+    <Modal visible={showMessageModal} animationType="slide" transparent>
+      <View style={dynamicStyles.modalOverlay}>
+        <View style={dynamicStyles.messageDetailsModal}>
+          <View style={dynamicStyles.messageDetailsHeader}>
+            <Text style={dynamicStyles.messageDetailsTitle}>
+              {selectedMessage?.title}
+            </Text>
+            <TouchableOpacity onPress={() => setShowMessageModal(false)}>
+              <Ionicons name="close" size={24} color={darkMode ? "#fff" : "#333"} />
+            </TouchableOpacity>
+          </View>
+          
+          {selectedMessage && (
+            <ScrollView style={dynamicStyles.messageDetailsContent}>
+              <View style={dynamicStyles.messageDetailsSection}>
+                <Text style={dynamicStyles.messageDetailsSectionTitle}>Message Details</Text>
+                <Text style={dynamicStyles.messageDetailsText}>
+                  Type: {selectedMessage.type}
+                </Text>
+                <Text style={dynamicStyles.messageDetailsText}>
+                  Date: {new Date(selectedMessage.timestamp).toLocaleString()}
+                </Text>
+              </View>
+              
+              <View style={dynamicStyles.messageDetailsSection}>
+                <Text style={dynamicStyles.messageDetailsSectionTitle}>Content</Text>
+                <Text style={dynamicStyles.messageDetailsText}>
+                  {selectedMessage.content}
+                </Text>
+              </View>
+              
+              {selectedMessage.orderId && (
+                <View style={dynamicStyles.messageDetailsSection}>
+                  <Text style={dynamicStyles.messageDetailsSectionTitle}>Related Order</Text>
+                  <Text style={dynamicStyles.messageDetailsText}>
+                    Order ID: #{selectedMessage.orderId}
+                  </Text>
+                  <TouchableOpacity 
+                    style={dynamicStyles.viewDetailsButton}
+                    onPress={() => {
+                      const order = activeOrders.find(o => o.id === selectedMessage.orderId);
+                      if (order) {
+                        setShowMessageModal(false);
+                        setSelectedOrder(order);
+                        setShowOrderDetails(true);
+                      }
+                    }}
+                  >
+                    <Text style={dynamicStyles.viewDetailsButtonText}>View Order Details</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+              
+              {/* Add OK button for completion messages */}
+              {selectedMessage.type === 'completion' && (
+                <TouchableOpacity 
+                  style={dynamicStyles.approvalNotificationButton}
+                  onPress={() => {
+                    markMessageAsRead(selectedMessage.id);
+                    setShowMessageModal(false);
+                  }}
+                >
+                  <Text style={dynamicStyles.approvalNotificationButtonText}>OK</Text>
+                </TouchableOpacity>
+              )}
+            </ScrollView>
+          )}
+        </View>
+      </View>
+    </Modal>
+  );
+  
+  // Get the most recent unacknowledged order for the process tracker
+  const getMostRecentUnacknowledgedOrder = () => {
+    const unacknowledgedOrders = activeOrders.filter(order => !order.acknowledged);
+    if (unacknowledgedOrders.length === 0) return null;
+    
+    // Return the most recent order (highest ID)
+    return unacknowledgedOrders.reduce((prev, current) => 
+      prev.id > current.id ? prev : current
+    );
+  };
+  
+  // Render food cycle step modal
+  const renderFoodCycleStepModal = () => (
+    <Modal visible={showFoodCycleStepModal} animationType="slide" transparent>
+      <View style={dynamicStyles.modalContainer}>
+        <View style={dynamicStyles.foodCycleStepModal}>
+          <View style={dynamicStyles.foodCycleStepModalHeader}>
+            <Text style={dynamicStyles.foodCycleStepModalTitle}>
+              {selectedFoodCycleStep?.title}
+            </Text>
+            <TouchableOpacity onPress={() => setShowFoodCycleStepModal(false)}>
+              <Ionicons name="close" size={24} color={darkMode ? "#fff" : "#333"} />
+            </TouchableOpacity>
+          </View>
+          
+          {selectedFoodCycleStep && (
+            <View style={dynamicStyles.foodCycleStepModalContent}>
+              <FontAwesome5 
+                name={selectedFoodCycleStep.icon} 
+                size={40} 
+                color={selectedFoodCycleStep.color} 
+                style={{ marginBottom: 20, alignSelf: 'center' }}
+              />
+              <Text style={dynamicStyles.foodCycleStepModalDescription}>
+                {selectedFoodCycleStep.description}
+              </Text>
+            </View>
+          )}
+        </View>
+      </View>
+    </Modal>
+  );
+  
+  // Render food cycle sequence with arrows and numbering
+  const renderFoodCycleSequence = (steps, branchTitle) => (
+    <View style={dynamicStyles.foodCycleBranch}>
+      <Text style={dynamicStyles.foodCycleSubtitle}>{branchTitle}</Text>
+      <View style={dynamicStyles.foodCycleSequence}>
+        {steps.map((step, index) => (
+          <React.Fragment key={step.id}>
+            <View style={dynamicStyles.foodCycleStepRow}>
+              <View style={dynamicStyles.foodCycleStepNumber}>
+                <Text style={dynamicStyles.foodCycleStepNumberText}>{index + 1}</Text>
+              </View>
+              <TouchableOpacity 
+                style={dynamicStyles.foodCycleStepContent}
+                onPress={() => handleFoodCycleStepClick(step)}
+              >
+                <View style={[dynamicStyles.foodCycleStepIcon, { backgroundColor: `${step.color}20` }]}>
+                  <FontAwesome5 name={step.icon} size={20} color={step.color} />
+                </View>
+                <Text style={dynamicStyles.foodCycleText}>{step.title}</Text>
+              </TouchableOpacity>
+            </View>
+            
+            {/* Add arrow between steps (except for the last step) */}
+            {index < steps.length - 1 && (
+              <View style={dynamicStyles.foodCycleArrow}>
+                <FontAwesome5 name="long-arrow-alt-down" size={20} color="#666" />
+              </View>
+            )}
+          </React.Fragment>
+        ))}
+      </View>
+    </View>
+  );
+  
+  // Render rewards list item
+  const renderRewardItem = ({ item }) => (
+    <View style={dynamicStyles.rewardCard}>
+      <View style={dynamicStyles.rewardHeader}>
+        <View style={[dynamicStyles.rewardIconContainer, { backgroundColor: `${item.color}20` }]}>
+          <FontAwesome5 name={item.icon} size={24} color={item.color} />
+        </View>
+        <View style={dynamicStyles.rewardTitleContainer}>
+          <Text style={dynamicStyles.rewardTitle}>{item.name}</Text>
+          <Text style={dynamicStyles.rewardPoints}>{item.points} Points</Text>
+        </View>
+      </View>
+      <Text style={dynamicStyles.rewardDescription}>{item.description}</Text>
+      <TouchableOpacity 
+        style={[
+          dynamicStyles.redeemButton,
+          points < item.points && dynamicStyles.redeemButtonDisabled
+        ]}
+        onPress={() => handleSelectReward(item)}
+        disabled={points < item.points}
+      >
+        <Text style={dynamicStyles.redeemButtonText}>Redeem</Text>
+      </TouchableOpacity>
+    </View>
+  );
+  
+  // Render rewards modal
+  const renderRewardsModal = () => (
+    <Modal visible={rewardsVisible} animationType="slide" transparent>
+      <View style={dynamicStyles.modalOverlay}>
+        <View style={dynamicStyles.rewardsModal}>
+          <View style={dynamicStyles.rewardsModalHeader}>
+            <Text style={dynamicStyles.rewardsModalTitle}>Rewards</Text>
+            <TouchableOpacity onPress={() => setRewardsVisible(false)}>
+              <Ionicons name="close" size={24} color={darkMode ? "#fff" : "#333"} />
+            </TouchableOpacity>
+          </View>
+          
+          <View style={dynamicStyles.rewardsPointsContainer}>
+            <Text style={dynamicStyles.rewardsPointsText}>Your Points: {points}</Text>
+          </View>
+          
+          <FlatList
+            data={rewards}
+            renderItem={renderRewardItem}
+            keyExtractor={item => item.id.toString()}
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={dynamicStyles.rewardsList}
+          />
+        </View>
+      </View>
+    </Modal>
+  );
+  
+  // Render reward confirmation modal
+  const renderRewardConfirmationModal = () => (
+    <Modal visible={showRewardConfirmation} animationType="slide" transparent>
+      <View style={dynamicStyles.modalContainer}>
+        <View style={dynamicStyles.rewardConfirmationModal}>
+          <Text style={dynamicStyles.rewardConfirmationTitle}>Confirm Redemption</Text>
+          <Text style={dynamicStyles.rewardConfirmationMessage}>
+            Are you sure you want to redeem {selectedReward?.name} for {selectedReward?.points} points?
+          </Text>
+          <View style={dynamicStyles.rewardConfirmationButtons}>
+            <TouchableOpacity 
+              style={dynamicStyles.confirmButton}
+              onPress={confirmRewardRedemption}
+            >
+              <Text style={dynamicStyles.confirmButtonText}>Confirm</Text>
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={dynamicStyles.cancelButton}
+              onPress={() => setShowRewardConfirmation(false)}
+            >
+              <Text style={dynamicStyles.cancelButtonText}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+  
+  // Render reward success modal
+  const renderRewardSuccessModal = () => (
+    <Modal visible={showRewardSuccess} animationType="slide" transparent>
+      <View style={dynamicStyles.modalContainer}>
+        <View style={dynamicStyles.rewardSuccessModal}>
+          <Text style={dynamicStyles.rewardSuccessTitle}>Reward Redeemed!</Text>
+          <Text style={dynamicStyles.rewardSuccessMessage}>
+            You have successfully redeemed {selectedReward?.name}. Your reward details will be sent to your email.
+          </Text>
+          <TouchableOpacity 
+            style={dynamicStyles.rewardSuccessButton}
+            onPress={() => setShowRewardSuccess(false)}
+          >
+            <Text style={dynamicStyles.rewardSuccessButtonText}>OK</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </Modal>
+  );
+  
+  return (
+    <KeyboardAvoidingView 
+      style={{flex: 1}} 
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    >
+      <ImageBackground source={{ uri: backgroundUri }} style={dynamicStyles.background}>
+        <ScrollView contentContainerStyle={dynamicStyles.container}>
+          <View style={dynamicStyles.topRow}>
+            {!mode ? (
+              <View style={dynamicStyles.userSection}>
+                <TouchableOpacity onPress={() => setSettingsVisible(true)} style={dynamicStyles.settingsButton}>
+                  <Ionicons name="settings-outline" size={24} color={darkMode ? "#fff" : "black"} />
+                </TouchableOpacity>
+                <Text style={dynamicStyles.userInfo}>
+                  {userData.name || 'Guest'} ({userData.type || 'Guest'})
+                </Text>
+              </View>
+            ) : (
+              <TouchableOpacity onPress={() => {
+                setMode(null);
+                setIsCooked(null);
+              }} style={dynamicStyles.backButton}>
+                <Ionicons name="arrow-back" size={24} color="#2196F3" />
+              </TouchableOpacity>
+            )}
+            <View style={dynamicStyles.spacer} />
+            <View style={dynamicStyles.pointsSection}>
+              <Text style={dynamicStyles.points}>Points: {points} 🏅</Text>
+              <TouchableOpacity onPress={() => setShowPointsInfo(true)} style={dynamicStyles.questionButton}>
+                <Text style={dynamicStyles.questionMark}>?</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+          
+          {/* Add the separator line here */}
+          <View style={dynamicStyles.separator} />
+          
+          {/* Professional App Header - Now under the top row */}
+          {!mode && (
+            <>
+              <View style={dynamicStyles.logoContainer}>
+                <View style={dynamicStyles.logo}>
+                  <FontAwesome5 name="leaf" size={24} color="#fff" />
+                </View>
+                <Text style={dynamicStyles.appName}>TAWFEER</Text>
+              </View>
+              <Text style={dynamicStyles.appTagline}>Reducing Food Waste, Nourishing Communities</Text>
+            </>
+          )}
+          
+          {/* Only show process tracker and orders when not in donate/request mode */}
+          {!mode && (
+            renderProcessTracker(getMostRecentUnacknowledgedOrder())
+          )}
+          
+          {!mode && activeOrders.filter(order => !order.acknowledged).length > 0 && (
+            <View style={dynamicStyles.activeOrdersContainer}>
+              <Text style={dynamicStyles.activeOrdersTitle}>Active Orders</Text>
+              <FlatList
+                data={activeOrders.filter(order => !order.acknowledged)}
+                renderItem={renderOrderItem}
+                keyExtractor={item => item.id.toString()}
+                showsVerticalScrollIndicator={false}
+              />
+            </View>
+          )}
+          
+          {/* Messages section - only show unread messages */}
+          {!mode && messages.filter(msg => !msg.read).length > 0 && (
+            <View style={dynamicStyles.messagesSection}>
+              <Text style={dynamicStyles.messagesTitle}>Messages</Text>
+              <FlatList
+                data={messages.filter(msg => !msg.read)}
+                renderItem={renderMessageItem}
+                keyExtractor={item => item.id.toString()}
+                showsVerticalScrollIndicator={false}
+              />
+            </View>
+          )}
+          
+          {!mode && (
+            <>
+              <Text style={dynamicStyles.title}>{t('wouldYouLikeTo')}</Text>
+              
+              {/* Professional Button Row - Now with 3 buttons */}
+              <View style={dynamicStyles.professionalButtonRow}>
+                <TouchableOpacity 
+                  style={dynamicStyles.professionalButton} 
+                  onPress={() => setMode('donate')}
+                >
+                  <View style={dynamicStyles.professionalButtonIcon}>
+                    <FontAwesome5 name="hand-holding-heart" size={28} color="#fff" />
+                  </View>
+                  <Text style={dynamicStyles.professionalButtonText}>{t('donateFood')}</Text>
+                </TouchableOpacity>
+                
+                <TouchableOpacity 
+                  style={dynamicStyles.professionalButton} 
+                  onPress={() => setMode('request')}
+                >
+                  <View style={dynamicStyles.professionalButtonIcon}>
+                    <FontAwesome5 name="hands-helping" size={28} color="#fff" />
+                  </View>
+                  <Text style={dynamicStyles.professionalButtonText}>{t('requestFood')}</Text>
+                </TouchableOpacity>
+                
+                <TouchableOpacity 
+                  style={dynamicStyles.professionalButton} 
+                  onPress={() => setMode('reuse')}
+                >
+                  <View style={dynamicStyles.professionalButtonIcon}>
+                    <FontAwesome5 name="recycle" size={28} color="#fff" />
+                  </View>
+                  <Text style={dynamicStyles.professionalButtonText}>Reuse Food</Text>
+                </TouchableOpacity>
+              </View>
+            </>
+          )}
+          
+          {mode === 'donate' && (
+            <View>
+              {/* Cooked/Uncooked Selection */}
+              <Text style={dynamicStyles.question}>Is the food cooked or uncooked?</Text>
+              <View style={dynamicStyles.switchRow}>
+                <TouchableOpacity 
+                  style={[dynamicStyles.switchButton, isCooked === true && dynamicStyles.selected]} 
+                  onPress={() => setIsCooked(true)}
+                >
+                  <Text>Cooked Food</Text>
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  style={[dynamicStyles.switchButton, isCooked === false && dynamicStyles.selected]} 
+                  onPress={() => setIsCooked(false)}
+                >
+                  <Text>Uncooked Food</Text>
+                </TouchableOpacity>
+              </View>
+              
+              {/* Conditional rendering based on cooked/uncooked selection */}
+              {isCooked === true && (
+                <>
+                  <Text style={dynamicStyles.question}>{t('howManyPeople')}</Text>
+                  <TextInput 
+                    style={dynamicStyles.input} 
+                    placeholder={t('e.g. 4')} 
+                    value={people} 
+                    onChangeText={setPeople} 
+                    keyboardType="numeric" 
+                    placeholderTextColor={darkMode ? '#888' : '#999'}
+                  />
+                  <Text style={dynamicStyles.question}>{t('isFoodNew')}</Text>
+                  <View style={dynamicStyles.switchRow}>
+                    <TouchableOpacity 
+                      style={[dynamicStyles.switchButton, isNew === true && dynamicStyles.selected]} 
+                      onPress={() => setIsNew(true)}
+                    >
+                      <Text>{t('yes')}</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity 
+                      style={[dynamicStyles.switchButton, isNew === false && dynamicStyles.selected]} 
+                      onPress={() => setIsNew(false)}
+                    >
+                      <Text>{t('no')}</Text>
+                    </TouchableOpacity>
+                  </View>
+                  <Text style={dynamicStyles.question}>{t('isFoodConsumable')}</Text>
+                  <View style={dynamicStyles.switchRow}>
+                    <TouchableOpacity 
+                      style={[dynamicStyles.switchButton, isConsumable === true && dynamicStyles.selected]} 
+                      onPress={() => setIsConsumable(true)}
+                    >
+                      <Text>{t('yes')}</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity 
+                      style={[dynamicStyles.switchButton, isConsumable === false && dynamicStyles.selected]} 
+                      onPress={() => setIsConsumable(false)}
+                    >
+                      <Text>{t('no')}</Text>
+                    </TouchableOpacity>
+                  </View>
+                </>
+              )}
+              
+              {isCooked === false && (
+                <>
+                  <Text style={dynamicStyles.question}>What type of uncooked food are you donating?</Text>
+                  <TouchableOpacity 
+                    style={[
+                      dynamicStyles.uncookedTypeButton, 
+                      uncookedType === 'Canned Goods' && dynamicStyles.uncookedTypeSelected
+                    ]} 
+                    onPress={() => setUncookedType('Canned Goods')}
+                  >
+                    <Text style={dynamicStyles.uncookedTypeText}>Canned Goods</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity 
+                    style={[
+                      dynamicStyles.uncookedTypeButton, 
+                      uncookedType === 'Rice' && dynamicStyles.uncookedTypeSelected
+                    ]} 
+                    onPress={() => setUncookedType('Rice')}
+                  >
+                    <Text style={dynamicStyles.uncookedTypeText}>Rice</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity 
+                    style={[
+                      dynamicStyles.uncookedTypeButton, 
+                      uncookedType === 'Flour' && dynamicStyles.uncookedTypeSelected
+                    ]} 
+                    onPress={() => setUncookedType('Flour')}
+                  >
+                    <Text style={dynamicStyles.uncookedTypeText}>Flour</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity 
+                    style={[
+                      dynamicStyles.uncookedTypeButton, 
+                      uncookedType === 'Other' && dynamicStyles.uncookedTypeSelected
+                    ]} 
+                    onPress={() => setUncookedType('Other')}
+                  >
+                    <Text style={dynamicStyles.uncookedTypeText}>Other</Text>
+                  </TouchableOpacity>
+                  
+                  {/* Custom input for "Other" option */}
+                  {uncookedType === 'Other' && (
+                    <>
+                      <Text style={dynamicStyles.question}>Specify the type of uncooked food</Text>
+                      <TextInput 
+                        style={dynamicStyles.input} 
+                        placeholder="e.g. Pasta, Sugar, etc." 
+                        value={customUncookedType} 
+                        onChangeText={setCustomUncookedType}
+                        placeholderTextColor={darkMode ? '#888' : '#999'}
+                      />
+                    </>
+                  )}
+                  
+                  {uncookedType !== '' && (
+                    <>
+                      <Text style={dynamicStyles.question}>Quantity</Text>
+                      <View style={dynamicStyles.switchRow}>
+                        <TextInput 
+                          style={[dynamicStyles.input, {flex: 2}]} 
+                          placeholder="Quantity" 
+                          value={uncookedQuantity} 
+                          onChangeText={setUncookedQuantity} 
+                          keyboardType="numeric" 
+                          placeholderTextColor={darkMode ? '#888' : '#999'}
+                        />
+                        <View style={[dynamicStyles.unitSelector, {flex: 3}]}>
+                          <TouchableOpacity 
+                            style={[
+                              dynamicStyles.unitButton, 
+                              uncookedUnit === 'items' && dynamicStyles.unitSelected
+                            ]} 
+                            onPress={() => setUncookedUnit('items')}
+                          >
+                            <Text style={dynamicStyles.unitText}>Items</Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity 
+                            style={[
+                              dynamicStyles.unitButton, 
+                              uncookedUnit === 'kg' && dynamicStyles.unitSelected
+                            ]} 
+                            onPress={() => setUncookedUnit('kg')}
+                          >
+                            <Text style={dynamicStyles.unitText}>Kg</Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity 
+                            style={[
+                              dynamicStyles.unitButton, 
+                              uncookedUnit === 'liters' && dynamicStyles.unitSelected
+                            ]} 
+                            onPress={() => setUncookedUnit('liters')}
+                          >
+                            <Text style={dynamicStyles.unitText}>Liters</Text>
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+                    </>
+                  )}
+                  
+                  <Text style={dynamicStyles.question}>{t('howManyPeople')}</Text>
+                  <TextInput 
+                    style={dynamicStyles.input} 
+                    placeholder={t('e.g. 4')} 
+                    value={people} 
+                    onChangeText={setPeople} 
+                    keyboardType="numeric" 
+                    placeholderTextColor={darkMode ? '#888' : '#999'}
+                  />
+                </>
+              )}
+              
+              {/* Description field with AI suggestion and photo analysis */}
+              <Text style={dynamicStyles.question}>Description</Text>
+              <View style={dynamicStyles.descriptionContainer}>
+                <TextInput
+                  style={[dynamicStyles.input, { flex: 1 }]}
+                  placeholder="Add a description for your donation"
+                  value={description}
+                  onChangeText={setDescription}
+                  placeholderTextColor={darkMode ? '#888' : '#999'}
+                  multiline
+                />
+                <View style={dynamicStyles.descriptionButtonsContainer}>
+                  <TouchableOpacity
+                    style={dynamicStyles.aiSuggestionButton}
+                    onPress={generateAISuggestion}
+                  >
+                    <Ionicons name="bulb-outline" size={24} color="#2196F3" />
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={dynamicStyles.aiSuggestionButton}
+                    onPress={handleTakePhotoForAI}
+                    disabled={aiPhotoLoading}
+                  >
+                    {aiPhotoLoading ? (
+                      <ActivityIndicator size="small" color="#2196F3" />
+                    ) : (
+                      <Ionicons name="camera-outline" size={24} color="#2196F3" />
+                    )}
+                  </TouchableOpacity>
+                </View>
+              </View>
+              
+              <Text style={dynamicStyles.question}>{t('uploadPhoto')}</Text>
+              <View style={dynamicStyles.switchRow}>
+                <TouchableOpacity style={dynamicStyles.photoButton} onPress={handleImagePick}>
+                  <Text>{t('selectPhoto')}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={dynamicStyles.photoButton} onPress={handleTakePhoto}>
+                  <Text>{t('takePhoto')}</Text>
+                </TouchableOpacity>
+              </View>
+              {imageUri && <Image source={{ uri: imageUri }} style={dynamicStyles.preview} />}
+              
+              {/* Location field with real location integration */}
+              <Text style={dynamicStyles.question}>{t('location')}</Text>
+              <View style={dynamicStyles.locationContainer}>
+                <TextInput
+                  style={[dynamicStyles.input, { flex: 1 }]}
+                  placeholder={t('enterLocation')}
+                  value={location}
+                  onChangeText={setLocation}
+                  placeholderTextColor={darkMode ? '#888' : '#999'}
+                />
+                <TouchableOpacity
+                  style={dynamicStyles.locationButton}
+                  onPress={getCurrentLocation}
+                  disabled={locationLoading}
+                >
+                  {locationLoading ? (
+                    <ActivityIndicator size="small" color="#2196F3" />
+                  ) : (
+                    <Ionicons name="location-outline" size={24} color="#2196F3" />
+                  )}
+                </TouchableOpacity>
+              </View>
+              
+              <Text style={dynamicStyles.question}>{t('phoneNumber')}</Text>
+              <TextInput 
+                style={dynamicStyles.input} 
+                placeholder={t('enterPhone')} 
+                value={phone} 
+                onChangeText={setPhone} 
+                keyboardType="phone-pad" 
+                placeholderTextColor={darkMode ? '#888' : '#999'}
+              />
+              <TouchableOpacity style={dynamicStyles.submitButton} onPress={handleSubmitDonation}>
+                <Text style={dynamicStyles.submitText}>{t('submitDonation')}</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+          
+          {mode === 'request' && (
+            <View>
+              <Text style={dynamicStyles.question}>{t('whyRequesting')}</Text>
+              <TextInput 
+                style={dynamicStyles.input} 
+                multiline 
+                placeholder={t('e.g. Lost job, large family, etc.')} 
+                value={requestReason} 
+                onChangeText={setRequestReason}
+                placeholderTextColor={darkMode ? '#888' : '#999'}
+              />
+              <Text style={dynamicStyles.question}>{t('howManyPeopleRequest')}</Text>
+              <TextInput 
+                style={dynamicStyles.input} 
+                placeholder={t('e.g. 5')} 
+                value={requestPeople} 
+                onChangeText={setRequestPeople} 
+                keyboardType="numeric"
+                placeholderTextColor={darkMode ? '#888' : '#999'}
+              />
+              
+              {/* Description field with AI suggestion and photo analysis */}
+              <Text style={dynamicStyles.question}>Description</Text>
+              <View style={dynamicStyles.descriptionContainer}>
+                <TextInput
+                  style={[dynamicStyles.input, { flex: 1 }]}
+                  placeholder="Add a description for your request"
+                  value={description}
+                  onChangeText={setDescription}
+                  placeholderTextColor={darkMode ? '#888' : '#999'}
+                  multiline
+                />
+                <View style={dynamicStyles.descriptionButtonsContainer}>
+                  <TouchableOpacity
+                    style={dynamicStyles.aiSuggestionButton}
+                    onPress={generateAISuggestion}
+                  >
+                    <Ionicons name="bulb-outline" size={24} color="#2196F3" />
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={dynamicStyles.aiSuggestionButton}
+                    onPress={handleTakePhotoForAI}
+                    disabled={aiPhotoLoading}
+                  >
+                    {aiPhotoLoading ? (
+                      <ActivityIndicator size="small" color="#2196F3" />
+                    ) : (
+                      <Ionicons name="camera-outline" size={24} color="#2196F3" />
+                    )}
+                  </TouchableOpacity>
+                </View>
+              </View>
+              
+              {/* Location field with real location integration */}
+              <Text style={dynamicStyles.question}>{t('location')}</Text>
+              <View style={dynamicStyles.locationContainer}>
+                <TextInput
+                  style={[dynamicStyles.input, { flex: 1 }]}
+                  placeholder={t('enterLocation')}
+                  value={location}
+                  onChangeText={setLocation}
+                  placeholderTextColor={darkMode ? '#888' : '#999'}
+                />
+                <TouchableOpacity
+                  style={dynamicStyles.locationButton}
+                  onPress={getCurrentLocation}
+                  disabled={locationLoading}
+                >
+                  {locationLoading ? (
+                    <ActivityIndicator size="small" color="#2196F3" />
+                  ) : (
+                    <Ionicons name="location-outline" size={24} color="#2196F3" />
+                  )}
+                </TouchableOpacity>
+              </View>
+              
+              <Text style={dynamicStyles.question}>{t('phoneNumber')}</Text>
+              <TextInput 
+                style={dynamicStyles.input} 
+                placeholder={t('enterPhone')} 
+                value={phone} 
+                onChangeText={setPhone} 
+                keyboardType="phone-pad"
+                placeholderTextColor={darkMode ? '#888' : '#999'}
+              />
+              <TouchableOpacity style={dynamicStyles.submitButton} onPress={handleSubmitRequest}>
+                <Text style={dynamicStyles.submitText}>{t('submitRequest')}</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+          
+          {mode === 'reuse' && (
+            <View>
+              <Text style={dynamicStyles.title}>Reuse Food</Text>
+              
+              {/* Cooked/Uncooked Selection */}
+              <Text style={dynamicStyles.question}>Is the food cooked or uncooked?</Text>
+              <View style={dynamicStyles.switchRow}>
+                <TouchableOpacity 
+                  style={[dynamicStyles.switchButton, isCooked === true && dynamicStyles.selected]} 
+                  onPress={() => setIsCooked(true)}
+                >
+                  <Text>Cooked Food</Text>
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  style={[dynamicStyles.switchButton, isCooked === false && dynamicStyles.selected]} 
+                  onPress={() => setIsCooked(false)}
+                >
+                  <Text>Uncooked Food</Text>
+                </TouchableOpacity>
+              </View>
+              
+              {/* Conditional rendering based on cooked/uncooked selection */}
+              {isCooked === true && (
+                <>
+                  <Text style={dynamicStyles.question}>{t('howManyPeople')}</Text>
+                  <TextInput 
+                    style={dynamicStyles.input} 
+                    placeholder={t('e.g. 4')} 
+                    value={people} 
+                    onChangeText={setPeople} 
+                    keyboardType="numeric" 
+                    placeholderTextColor={darkMode ? '#888' : '#999'}
+                  />
+                  <Text style={dynamicStyles.question}>{t('isFoodNew')}</Text>
+                  <View style={dynamicStyles.switchRow}>
+                    <TouchableOpacity 
+                      style={[dynamicStyles.switchButton, isNew === true && dynamicStyles.selected]} 
+                      onPress={() => setIsNew(true)}
+                    >
+                      <Text>{t('yes')}</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity 
+                      style={[dynamicStyles.switchButton, isNew === false && dynamicStyles.selected]} 
+                      onPress={() => setIsNew(false)}
+                    >
+                      <Text>{t('no')}</Text>
+                    </TouchableOpacity>
+                  </View>
+                  <Text style={dynamicStyles.question}>{t('isFoodConsumable')}</Text>
+                  <View style={dynamicStyles.switchRow}>
+                    <TouchableOpacity 
+                      style={[dynamicStyles.switchButton, isConsumable === true && dynamicStyles.selected]} 
+                      onPress={() => setIsConsumable(true)}
+                    >
+                      <Text>{t('yes')}</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity 
+                      style={[dynamicStyles.switchButton, isConsumable === false && dynamicStyles.selected]} 
+                      onPress={() => setIsConsumable(false)}
+                    >
+                      <Text>{t('no')}</Text>
+                    </TouchableOpacity>
+                  </View>
+                </>
+              )}
+              
+              {isCooked === false && (
+                <>
+                  <Text style={dynamicStyles.question}>What type of uncooked food are you reusing?</Text>
+                  <TouchableOpacity 
+                    style={[
+                      dynamicStyles.uncookedTypeButton, 
+                      uncookedType === 'Canned Goods' && dynamicStyles.uncookedTypeSelected
+                    ]} 
+                    onPress={() => setUncookedType('Canned Goods')}
+                  >
+                    <Text style={dynamicStyles.uncookedTypeText}>Canned Goods</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity 
+                    style={[
+                      dynamicStyles.uncookedTypeButton, 
+                      uncookedType === 'Rice' && dynamicStyles.uncookedTypeSelected
+                    ]} 
+                    onPress={() => setUncookedType('Rice')}
+                  >
+                    <Text style={dynamicStyles.uncookedTypeText}>Rice</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity 
+                    style={[
+                      dynamicStyles.uncookedTypeButton, 
+                      uncookedType === 'Flour' && dynamicStyles.uncookedTypeSelected
+                    ]} 
+                    onPress={() => setUncookedType('Flour')}
+                  >
+                    <Text style={dynamicStyles.uncookedTypeText}>Flour</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity 
+                    style={[
+                      dynamicStyles.uncookedTypeButton, 
+                      uncookedType === 'Other' && dynamicStyles.uncookedTypeSelected
+                    ]} 
+                    onPress={() => setUncookedType('Other')}
+                  >
+                    <Text style={dynamicStyles.uncookedTypeText}>Other</Text>
+                  </TouchableOpacity>
+                  
+                  {/* Custom input for "Other" option */}
+                  {uncookedType === 'Other' && (
+                    <>
+                      <Text style={dynamicStyles.question}>Specify the type of uncooked food</Text>
+                      <TextInput 
+                        style={dynamicStyles.input} 
+                        placeholder="e.g. Pasta, Sugar, etc." 
+                        value={customUncookedType} 
+                        onChangeText={setCustomUncookedType}
+                        placeholderTextColor={darkMode ? '#888' : '#999'}
+                      />
+                    </>
+                  )}
+                  
+                  {uncookedType !== '' && (
+                    <>
+                      <Text style={dynamicStyles.question}>Quantity</Text>
+                      <View style={dynamicStyles.switchRow}>
+                        <TextInput 
+                          style={[dynamicStyles.input, {flex: 2}]} 
+                          placeholder="Quantity" 
+                          value={uncookedQuantity} 
+                          onChangeText={setUncookedQuantity} 
+                          keyboardType="numeric" 
+                          placeholderTextColor={darkMode ? '#888' : '#999'}
+                        />
+                        <View style={[dynamicStyles.unitSelector, {flex: 3}]}>
+                          <TouchableOpacity 
+                            style={[
+                              dynamicStyles.unitButton, 
+                              uncookedUnit === 'items' && dynamicStyles.unitSelected
+                            ]} 
+                            onPress={() => setUncookedUnit('items')}
+                          >
+                            <Text style={dynamicStyles.unitText}>Items</Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity 
+                            style={[
+                              dynamicStyles.unitButton, 
+                              uncookedUnit === 'kg' && dynamicStyles.unitSelected
+                            ]} 
+                            onPress={() => setUncookedUnit('kg')}
+                          >
+                            <Text style={dynamicStyles.unitText}>Kg</Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity 
+                            style={[
+                              dynamicStyles.unitButton, 
+                              uncookedUnit === 'liters' && dynamicStyles.unitSelected
+                            ]} 
+                            onPress={() => setUncookedUnit('liters')}
+                          >
+                            <Text style={dynamicStyles.unitText}>Liters</Text>
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+                    </>
+                  )}
+                  
+                  <Text style={dynamicStyles.question}>{t('howManyPeople')}</Text>
+                  <TextInput 
+                    style={dynamicStyles.input} 
+                    placeholder={t('e.g. 4')} 
+                    value={people} 
+                    onChangeText={setPeople} 
+                    keyboardType="numeric" 
+                    placeholderTextColor={darkMode ? '#888' : '#999'}
+                  />
+                </>
+              )}
+              
+              {/* Reuse Food AI Assistant */}
+              <View style={dynamicStyles.reuseAiContainer}>
+                <Text style={dynamicStyles.reuseAiTitle}>♻️ Food Reuse AI Assistant</Text>
+                
+                <Text style={dynamicStyles.question}>Take a photo of your food</Text>
+                <View style={dynamicStyles.switchRow}>
+                  <TouchableOpacity 
+                    style={dynamicStyles.reusePhotoButton} 
+                    onPress={handleReusePhoto}
+                  >
+                    <Ionicons name="camera" size={18} color={darkMode ? "#fff" : "#333"} />
+                    <Text style={dynamicStyles.reusePhotoButtonText}>Take Photo</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity 
+                    style={dynamicStyles.reusePhotoButton} 
+                    onPress={handleReuseImagePick}
+                  >
+                    <Ionicons name="image" size={18} color={darkMode ? "#fff" : "#333"} />
+                    <Text style={dynamicStyles.reusePhotoButtonText}>Select Photo</Text>
+                  </TouchableOpacity>
+                </View>
+                {reuseImageUri && <Image source={{ uri: reuseImageUri }} style={dynamicStyles.reusePreview} />}
+                
+                <Text style={dynamicStyles.question}>Ask how to reuse this food</Text>
+                <View style={dynamicStyles.reuseAiInputContainer}>
+                  <TextInput
+                    style={dynamicStyles.reuseAiInput}
+                    placeholder="e.g. How can I reuse leftover rice?"
+                    value={reuseAiInput}
+                    onChangeText={setReuseAiInput}
+                    placeholderTextColor={darkMode ? '#888' : '#999'}
+                  />
+                  <TouchableOpacity
+                    style={dynamicStyles.reuseAiButton}
+                    onPress={handleReuseAIRequest}
+                    disabled={reuseLoading}
+                  >
+                    {reuseLoading ? (
+                      <ActivityIndicator size="small" color="#fff" />
+                    ) : (
+                      <Ionicons name="send" size={18} color="#fff" />
+                    )}
+                  </TouchableOpacity>
+                </View>
+                
+                {reuseLoading && <ActivityIndicator size="small" color="#4CAF50" style={{ marginTop: 10 }} />}
+                
+                {/* Render recipe response with separators */}
+                {reuseAiResponse !== '' && (
+                  <View>
+                    {reuseAiResponse.split('||RECIPE_SEPARATOR||').map((recipe, index) => (
+                      <View key={index}>
+                        <Text style={dynamicStyles.reuseAiResponse}>{recipe}</Text>
+                        {index < reuseAiResponse.split('||RECIPE_SEPARATOR||').length - 1 && (
+                          <View style={dynamicStyles.recipeSeparator} />
+                        )}
+                      </View>
+                    ))}
+                  </View>
+                )}
+                
+                <View style={dynamicStyles.reuseAiExamples}>
+                  <Text style={dynamicStyles.reuseAiExampleText}>Example questions:</Text>
+                  <Text style={dynamicStyles.reuseAiExampleText}>• What can I make with leftover vegetables?</Text>
+                  <Text style={dynamicStyles.reuseAiExampleText}>• How to reuse stale bread?</Text>
+                  <Text style={dynamicStyles.reuseAiExampleText}>• Creative ways to use overripe fruits</Text>
+                </View>
+              </View>
+            </View>
+          )}
+          
+          {/* Only show AI box and Tawfeer guide when not in donate or request mode */}
+          {!mode && (
+            <>
+              <View style={dynamicStyles.aiBox}>
+                <Text style={dynamicStyles.question}>{t('askAI')}</Text>
+                <TextInput 
+                  style={dynamicStyles.input} 
+                  placeholder={t('e.g. tomato, rice, onion — or ask how to make biryani')} 
+                  value={aiInput} 
+                  onChangeText={setAiInput}
+                  placeholderTextColor={darkMode ? '#888' : '#999'}
+                />
+                <TouchableOpacity style={dynamicStyles.aiButton} onPress={handleAIRequest}>
+                  <Text style={dynamicStyles.submitText}>{t('getRecipe')}</Text>
+                </TouchableOpacity>
+                {loading && <ActivityIndicator size="small" color="#2196F3" style={{ marginTop: 10 }} />}
+                {aiResponse !== '' && <Text style={dynamicStyles.aiResponse}>{aiResponse}</Text>}
+              </View>
+              
+              <TouchableOpacity 
+                style={dynamicStyles.guideButton}
+                onPress={() => setShowCompleteGuide(!showCompleteGuide)}
+              >
+                <Text style={dynamicStyles.guideTitle}>📱 Tawfeer - Complete Guide</Text>
+                <Text style={dynamicStyles.guideTitle}>{showCompleteGuide ? '▲' : '▼'}</Text>
+              </TouchableOpacity>
+              
+              {showCompleteGuide && (
+                <View style={dynamicStyles.appGuideContainer}>
+                  <Text style={dynamicStyles.guideSectionTitle}>🎯 About Tawfeer</Text>
+                  <Text style={dynamicStyles.guideText}>
+                    Tawfeer is a smart mobile application built in the UAE to combat one of the most serious global challenges: food waste. 
+                    It helps individuals, restaurants, supermarkets, and organizations donate or repurpose food instead of wasting it.
+                  </Text>
+                  
+                  <Text style={dynamicStyles.guideSectionTitle}>🌟 Our Goals</Text>
+                  <Text style={dynamicStyles.guideText}>
+                    • Reduce food waste across UAE homes and businesses{'\n'}
+                    • Promote donation of safe, edible food{'\n'}
+                    • Support UAE Vision 2031 sustainability goals{'\n'}
+                    • Use AI to analyze ingredients and give recipe tips{'\n'}
+                    • Reward users to encourage repeated contributions{'\n'}
+                    • Build a community focused on sustainability
+                  </Text>
+                  
+                  <Text style={dynamicStyles.guideSectionTitle}>📖 How to Use Tawfeer</Text>
+                  
+                  <Text style={dynamicStyles.guideSubTitle}>🍽️ Donating Food:</Text>
+                  <Text style={dynamicStyles.guideText}>
+                    1. Click "Donate Food" on the main screen{'\n'}
+                    2. Specify if the food is cooked or uncooked{'\n'}
+                    3. Fill in the required details based on food type{'\n'}
+                    4. Add a description for your donation{'\n'}
+                    5. Take or upload a photo of the food{'\n'}
+                    6. Enter your location and phone number{'\n'}
+                    7. Submit - earn points when the driver completes the delivery!
+                  </Text>
+                  
+                  <Text style={dynamicStyles.guideSubTitle}>🙏 Requesting Food:</Text>
+                  <Text style={dynamicStyles.guideText}>
+                    1. Click "Request Food" on the main screen{'\n'}
+                    2. Explain why you need food assistance{'\n'}
+                    3. Specify how many people will be served{'\n'}
+                    4. Enter your location and contact information{'\n'}
+                    5. Submit your request - we'll contact you soon!
+                  </Text>
+                  
+                  <Text style={dynamicStyles.guideSubTitle}>♻️ Reusing Food:</Text>
+                  <Text style={dynamicStyles.guideText}>
+                    1. Click "Reuse Food" on the main screen{'\n'}
+                    2. Specify if the food is cooked or uncooked{'\n'}
+                    3. Fill in the details about your food{'\n'}
+                    4. Take a photo of the food you want to reuse{'\n'}
+                    5. Ask our AI assistant for creative reuse ideas{'\n'}
+                    6. Get personalized suggestions and recipes!
+                  </Text>
+                  
+                  <Text style={dynamicStyles.guideSubTitle}>🤖 AI Recipe Assistant:</Text>
+                  <Text style={dynamicStyles.guideText}>
+                    • Ask AI about cooking with specific ingredients{'\n'}
+                    • Get recipe suggestions for leftover food{'\n'}
+                    • Learn how to make meals with what you have{'\n'}
+                    • Available on every screen for quick help
+                  </Text>
+                  
+                  <Text style={dynamicStyles.guideSubTitle}>⚙️ Settings & Profile:</Text>
+                  <Text style={dynamicStyles.guideText}>
+                    • View and edit your profile information{'\n'}
+                    • Check your donation history{'\n'}
+                    • Track your points and contributions{'\n'}
+                    • Customize notifications and appearance{'\n'}
+                    • Get help and support{'\n'}
+                    • Logout when needed
+                  </Text>
+                  
+                  <Text style={dynamicStyles.guideSectionTitle}>🏆 Points System</Text>
+                  <Text style={dynamicStyles.guideText}>
+                    Earn points when drivers evaluate and complete your donations. The more you contribute, the more you help build a sustainable UAE!
+                  </Text>
+                  
+                  <Text style={dynamicStyles.guideSectionTitle}>🌍 Environmental Impact</Text>
+                  <Text style={dynamicStyles.guideText}>
+                    Every donation through Tawfeer helps:{'\n'}
+                    • Reduce methane emissions from food waste{'\n'}
+                    • Save water and energy used in food production{'\n'}
+                    • Support families and individuals in need{'\n'}
+                    • Build a more sustainable UAE community
+                  </Text>
+                  
+                  <Text style={dynamicStyles.guideSectionTitle}>👥 User Types</Text>
+                  <Text style={dynamicStyles.guideText}>
+                    • <Text style={dynamicStyles.guideBoldText}>{t('household')}:</Text> {t('familiesIndividuals')}{'\n'}
+                    • <Text style={dynamicStyles.guideBoldText}>{t('restaurant')}:</Text> {t('foodBusinesses')}{'\n'}
+                    • <Text style={dynamicStyles.guideBoldText}>{t('supermarket')}:</Text> {t('groceryStores')}{'\n'}
+                    • <Text style={dynamicStyles.guideBoldText}>{t('organization')}:</Text> {t('ngosCompanies')}{'\n'}
+                    • <Text style={dynamicStyles.guideBoldText}>{t('guest')}:</Text> {t('temporaryAccess')}
+                  </Text>
+                  
+                  {/* Bottom spacing for better scrolling */}
+                  <View style={{height: 40}} />
+                </View>
+              )}
+            </>
+          )}
+          
+          {/* Professional Food Cycle Illustration */}
+          {!mode && (
+            <View style={dynamicStyles.foodCycleContainer}>
+              <Text style={dynamicStyles.foodCycleTitle}>Food Cycle</Text>
+              
+              {/* Consumable Food Branch */}
+              {renderFoodCycleSequence(consumableFoodSteps, "🍽️ Consumable Food")}
+              
+              {/* Non-Consumable Food Branch */}
+              {renderFoodCycleSequence(nonConsumableFoodSteps, "🗑️ Non-Consumable Food")}
+            </View>
+          )}
+          
+          {/* Settings Modal */}
+          <Modal visible={settingsVisible} animationType="slide" transparent>
+            <View style={dynamicStyles.modalOverlay}>
+              <View style={dynamicStyles.modalContent}>
+                <View style={dynamicStyles.modalHeader}>
+                  <Text style={dynamicStyles.modalTitle}>{t('settings')}</Text>
+                  <TouchableOpacity onPress={() => setSettingsVisible(false)}>
+                    <Ionicons name="close" size={24} color={darkMode ? "#fff" : "#333"} />
+                  </TouchableOpacity>
+                </View>
+                
+                <ScrollView showsVerticalScrollIndicator={true}>
+                  {/* Profile Section */}
+                  <View style={dynamicStyles.profileSection}>
+                    <View style={dynamicStyles.profileImageContainer}>
+                      {profileImage ? (
+                        <Image source={{ uri: profileImage }} style={dynamicStyles.profileImage} />
+                      ) : (
+                        <View style={dynamicStyles.profileImagePlaceholder}>
+                          <FontAwesome5 name="user" size={40} color={darkMode ? "#666" : "#ccc"} />
+                        </View>
+                      )}
+                      <TouchableOpacity style={dynamicStyles.cameraButton} onPress={handleProfileImagePick}>
+                        <Ionicons name="camera" size={16} color="#fff" />
+                      </TouchableOpacity>
+                    </View>
+                    <Text style={dynamicStyles.profileName}>{userData.name || 'Guest User'}</Text>
+                    <Text style={dynamicStyles.profileType}>{userData.type || 'Guest'}</Text>
+                  </View>
+                  
+                  {/* Rewards Section */}
+                  <TouchableOpacity 
+                    style={dynamicStyles.sectionHeader} 
+                    onPress={() => setRewardsVisible(true)}
+                  >
+                    <FontAwesome5 name="gift" size={18} color="#FF9800" />
+                    <Text style={dynamicStyles.sectionTitle}> Rewards </Text>
+                    <Text>▶</Text>
+                  </TouchableOpacity>
+                  
+                  {/* Messages Section */}
+                  <TouchableOpacity 
+                    style={dynamicStyles.sectionHeader} 
+                    onPress={() => toggleSection('messagesSection')}
+                  >
+                    <Ionicons name="mail" size={18} color="#FF9800" />
+                    <Text style={dynamicStyles.sectionTitle}> Messages </Text>
+                    <Text>{activeSection === 'messagesSection' ? '▲' : '▼'}</Text>
+                  </TouchableOpacity>
+                  {activeSection === 'messagesSection' && (
+                    <View style={dynamicStyles.cardContent}>
+                      {messages.length === 0 ? (
+                        <Text style={dynamicStyles.infoTextItalic}>No messages</Text>
+                      ) : (
+                        <FlatList
+                          data={messages}
+                          renderItem={renderMessageItem}
+                          keyExtractor={item => item.id.toString()}
+                          showsVerticalScrollIndicator={false}
+                        />
+                      )}
+                    </View>
+                  )}
+                  
+                  {/* Language Settings */}
+                  <TouchableOpacity 
+                    style={dynamicStyles.sectionHeader} 
+                    onPress={() => toggleSection('languageSettings')}
+                  >
+                    <Ionicons name="language" size={18} color="#607D8B" />
+                    <Text style={dynamicStyles.sectionTitle}> {t('language')} </Text>
+                    <Text>{activeSection === 'languageSettings' ? '▲' : '▼'}</Text>
+                  </TouchableOpacity>
+                  {activeSection === 'languageSettings' && (
+                    <View style={dynamicStyles.cardContent}>
+                      <View style={dynamicStyles.settingRow}>
+                        <TouchableOpacity 
+                          style={[
+                            dynamicStyles.switchButton, 
+                            language === 'en' && dynamicStyles.selected
+                          ]}
+                          onPress={() => setLanguage('en')}
+                        >
+                          <Text>{t('english')}</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity 
+                          style={[
+                            dynamicStyles.switchButton, 
+                            language === 'ar' && dynamicStyles.selected
+                          ]}
+                          onPress={() => setLanguage('ar')}
+                        >
+                          <Text>{t('arabic')}</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  )}
+                  
+                  {/* User Information */}
+                  <TouchableOpacity 
+                    style={dynamicStyles.sectionHeader} 
+                    onPress={() => toggleSection('userInfo')}
+                  >
+                    <FontAwesome5 name="user" size={18} color="#2196F3" />
+                    <Text style={dynamicStyles.sectionTitle}> {t('userInformation')} </Text>
+                    <Text>{activeSection === 'userInfo' ? '▲' : '▼'}</Text>
+                  </TouchableOpacity>
+                  {activeSection === 'userInfo' && (
+                    <View style={dynamicStyles.cardContent}>
+                      {!isEditingUser ? (
+                        <>
+                          <Text style={dynamicStyles.infoText}>Name: {userData.name}</Text>
+                          <Text style={dynamicStyles.infoText}>Email: {userData.email}</Text>
+                          <Text style={dynamicStyles.infoText}>Phone: {userData.phone}</Text>
+                          <Text style={dynamicStyles.infoText}>Type: {userData.type}</Text>
+                          <Text style={dynamicStyles.infoText}>Address: {userData.address || 'Not provided'}</Text>
+                          <TouchableOpacity onPress={handleEditUser}>
+                            <Text style={dynamicStyles.editLink}>{t('edit')}</Text>
+                          </TouchableOpacity>
+                        </>
+                      ) : (
+                        <>
+                          <Text style={dynamicStyles.editLabel}>{t('name')}:</Text>
+                          <TextInput
+                            style={dynamicStyles.editInput}
+                            value={editedUserData.name}
+                            onChangeText={(text) => setEditedUserData(prev => ({...prev, name: text}))}
+                            placeholder={t('enterName')}
+                            placeholderTextColor={darkMode ? '#888' : '#999'}
+                          />
+                          
+                          <Text style={dynamicStyles.editLabel}>{t('email')}:</Text>
+                          <TextInput
+                            style={dynamicStyles.editInput}
+                            value={editedUserData.email}
+                            onChangeText={(text) => setEditedUserData(prev => ({...prev, email: text}))}
+                            placeholder={t('enterEmail')}
+                            keyboardType="email-address"
+                            placeholderTextColor={darkMode ? '#888' : '#999'}
+                          />
+                          
+                          <Text style={dynamicStyles.editLabel}>{t('phone')}:</Text>
+                          <TextInput
+                            style={dynamicStyles.editInput}
+                            value={editedUserData.phone}
+                            onChangeText={(text) => setEditedUserData(prev => ({...prev, phone: text}))}
+                            placeholder={t('enterPhone')}
+                            keyboardType="phone-pad"
+                            placeholderTextColor={darkMode ? '#888' : '#999'}
+                          />
+                          
+                          <Text style={dynamicStyles.editLabel}>{t('type')}:</Text>
+                          <TextInput
+                            style={dynamicStyles.editInput}
+                            value={editedUserData.type}
+                            onChangeText={(text) => setEditedUserData(prev => ({...prev, type: text}))}
+                            placeholder={t('enterType')}
+                            placeholderTextColor={darkMode ? '#888' : '#999'}
+                          />
+                          
+                          <Text style={dynamicStyles.editLabel}>{t('address')}:</Text>
+                          <TextInput
+                            style={dynamicStyles.editInput}
+                            value={editedUserData.address}
+                            onChangeText={(text) => setEditedUserData(prev => ({...prev, address: text}))}
+                            placeholder={t('enterAddress')}
+                            placeholderTextColor={darkMode ? '#888' : '#999'}
+                          />
+                          
+                          <View style={dynamicStyles.editButtonsRow}>
+                            <TouchableOpacity style={dynamicStyles.saveButton} onPress={handleSaveUser}>
+                              <Text style={dynamicStyles.saveButtonText}>{t('save')}</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity style={dynamicStyles.cancelButton} onPress={handleCancelEdit}>
+                              <Text style={dynamicStyles.cancelButtonText}>{t('cancel')}</Text>
+                            </TouchableOpacity>
+                          </View>
+                        </>
+                      )}
+                    </View>
+                  )}
+                  
+                  {/* Donation History */}
+                  <TouchableOpacity 
+                    style={dynamicStyles.sectionHeader} 
+                    onPress={() => toggleSection('donationHistory')}
+                  >
+                    <FontAwesome5 name="history" size={18} color="#4CAF50" />
+                    <Text style={dynamicStyles.sectionTitle}> {t('donationHistory')} </Text>
+                    <Text>{activeSection === 'donationHistory' ? '▲' : '▼'}</Text>
+                  </TouchableOpacity>
+                  {activeSection === 'donationHistory' && (
+                    <View style={dynamicStyles.cardContent}>
+                      {donationHistory.length === 0 ? (
+                        <Text style={dynamicStyles.infoTextItalic}>{t('noDonationsYet')}</Text>
+                      ) : (
+                        donationHistory.map((item, index) => (
+                          <View key={index} style={dynamicStyles.donationDetailCard}>
+                            <View style={dynamicStyles.donationDetailHeader}>
+                              <Text style={dynamicStyles.donationDetailTitle}>{t('donation')} #{index + 1}</Text>
+                              <Text style={dynamicStyles.donationDetailDate}>{item.date}</Text>
+                            </View>
+                            
+                            <View style={dynamicStyles.donationDetailRow}>
+                              <Text style={dynamicStyles.donationDetailLabel}>{t('peopleServed')}:</Text>
+                              <Text style={dynamicStyles.donationDetailValue}>{item.people}</Text>
+                            </View>
+                            
+                            <View style={dynamicStyles.donationDetailRow}>
+                              <Text style={dynamicStyles.donationDetailLabel}>{t('foodType')}:</Text>
+                              <Text style={dynamicStyles.donationDetailValue}>{item.foodType}</Text>
+                            </View>
+                            
+                            <View style={dynamicStyles.donationDetailRow}>
+                              <Text style={dynamicStyles.donationDetailLabel}>{t('weight')}:</Text>
+                              <Text style={dynamicStyles.donationDetailValue}>{item.weight}</Text>
+                            </View>
+                            
+                            <View style={dynamicStyles.donationDetailRow}>
+                              <Text style={dynamicStyles.donationDetailLabel}>{t('location')}:</Text>
+                              <Text style={dynamicStyles.donationDetailValue}>{item.location}</Text>
+                            </View>
+                            
+                            <View style={dynamicStyles.donationDetailRow}>
+                              <Text style={dynamicStyles.donationDetailLabel}>{t('status')}:</Text>
+                              <Text style={dynamicStyles.donationDetailValue}>{item.status}</Text>
+                            </View>
+                            
+                            <View style={dynamicStyles.donationDetailRow}>
+                              <Text style={dynamicStyles.donationDetailLabel}>{t('estimatedPickup')}:</Text>
+                              <Text style={dynamicStyles.donationDetailValue}>{item.estimatedPickup}</Text>
+                            </View>
+                            
+                            <View style={dynamicStyles.donationDetailRow}>
+                              <Text style={dynamicStyles.donationDetailLabel}>{t('driver')}:</Text>
+                              <Text style={dynamicStyles.donationDetailValue}>{item.driverName} ({item.driverPhone})</Text>
+                            </View>
+                            
+                            {/* Only show points if they've been earned */}
+                            {item.pointsEarned > 0 && (
+                              <Text style={dynamicStyles.donationDetailStatus}>
+                                {t('pointsEarned')}: +{item.pointsEarned}
+                              </Text>
+                            )}
+                          </View>
+                        ))
+                      )}
+                    </View>
+                  )}
+                  
+                  {/* Notification Settings */}
+                  <TouchableOpacity 
+                    style={dynamicStyles.sectionHeader} 
+                    onPress={() => toggleSection('notificationSettings')}
+                  >
+                    <Ionicons name="notifications" size={18} color="#FF9800" />
+                    <Text style={dynamicStyles.sectionTitle}> {t('notifications')} </Text>
+                    <Text>{activeSection === 'notificationSettings' ? '▲' : '▼'}</Text>
+                  </TouchableOpacity>
+                  {activeSection === 'notificationSettings' && (
+                    <View style={dynamicStyles.cardContent}>
+                      <View style={dynamicStyles.settingRow}>
+                        <Text style={dynamicStyles.settingText}>{t('enableNotifications')}</Text>
+                        <Switch
+                          value={notificationsEnabled}
+                          onValueChange={setNotificationsEnabled}
+                          trackColor={{ false: '#767577', true: '#2196F3' }}
+                          thumbColor={notificationsEnabled ? '#f4f3f4' : '#f4f3f4'}
+                        />
+                      </View>
+                      <Text style={dynamicStyles.settingDescription}>
+                        {t('notificationsDescription')}
+                      </Text>
+                    </View>
+                  )}
+                  
+                  {/* Appearance Settings */}
+                  <TouchableOpacity 
+                    style={dynamicStyles.sectionHeader} 
+                    onPress={() => toggleSection('appearanceSettings')}
+                  >
+                    <Ionicons name="color-palette" size={18} color="#9C27B0" />
+                    <Text style={dynamicStyles.sectionTitle}> {t('appearance')} </Text>
+                    <Text>{activeSection === 'appearanceSettings' ? '▲' : '▼'}</Text>
+                  </TouchableOpacity>
+                  {activeSection === 'appearanceSettings' && (
+                    <View style={dynamicStyles.cardContent}>
+                      <View style={dynamicStyles.settingRow}>
+                        <Text style={dynamicStyles.settingText}>{t('darkMode')}</Text>
+                        <Switch
+                          value={darkMode}
+                          onValueChange={setDarkMode}
+                          trackColor={{ false: '#767577', true: '#9C27B0' }}
+                          thumbColor={darkMode ? '#f4f3f4' : '#f4f3f4'}
+                        />
+                      </View>
+                      
+                      <View style={dynamicStyles.sliderContainer}>
+                        <Text style={dynamicStyles.sliderLabel}>{t('fontSize')}: {fontSize}</Text>
+                        
+                        <View style={dynamicStyles.sliderTrack}>
+                          <View style={dynamicStyles.sliderProgress} />
+                          <View style={dynamicStyles.sliderThumb} />
+                        </View>
+                        
+                        <View style={dynamicStyles.sliderButtonsRow}>
+                          <TouchableOpacity 
+                            style={[
+                              dynamicStyles.sliderButton, 
+                              fontSize === 12 && dynamicStyles.sliderButtonActive
+                            ]}
+                            onPress={() => handleFontSizeChange(12)}
+                          >
+                            <Text style={[
+                              dynamicStyles.sliderButtonText,
+                              fontSize === 12 && dynamicStyles.sliderButtonTextActive
+                            ]}>{t('small')}</Text>
+                          </TouchableOpacity>
+                          
+                          <TouchableOpacity 
+                            style={[
+                              dynamicStyles.sliderButton, 
+                              fontSize === 16 && dynamicStyles.sliderButtonActive
+                            ]}
+                            onPress={() => handleFontSizeChange(16)}
+                          >
+                            <Text style={[
+                              dynamicStyles.sliderButtonText,
+                              fontSize === 16 && dynamicStyles.sliderButtonTextActive
+                            ]}>{t('medium')}</Text>
+                          </TouchableOpacity>
+                          
+                          <TouchableOpacity 
+                            style={[
+                              dynamicStyles.sliderButton, 
+                              fontSize === 20 && dynamicStyles.sliderButtonActive
+                            ]}
+                            onPress={() => handleFontSizeChange(20)}
+                          >
+                            <Text style={[
+                              dynamicStyles.sliderButtonText,
+                              fontSize === 20 && dynamicStyles.sliderButtonTextActive
+                            ]}>{t('large')}</Text>
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+                    </View>
+                  )}
+                  
+                  {/* Help & Support */}
+                  <TouchableOpacity 
+                    style={dynamicStyles.sectionHeader} 
+                    onPress={() => toggleSection('helpSupport')}
+                  >
+                    <FontAwesome5 name="question-circle" size={18} color="#E91E63" />
+                    <Text style={dynamicStyles.sectionTitle}> {t('helpSupport')} </Text>
+                    <Text>{activeSection === 'helpSupport' ? '▲' : '▼'}</Text>
+                  </TouchableOpacity>
+                  {activeSection === 'helpSupport' && (
+                    <View style={dynamicStyles.cardContent}>
+                      <TouchableOpacity style={dynamicStyles.supportButton} onPress={handleContactSupport}>
+                        <Ionicons name="mail" size={16} color="#2196F3" />
+                        <Text style={dynamicStyles.supportButtonText}>{t('contactSupport')}</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity style={dynamicStyles.supportButton} onPress={handleVisitWebsite}>
+                        <Ionicons name="globe" size={16} color="#2196F3" />
+                        <Text style={dynamicStyles.supportButtonText}>{t('visitWebsite')}</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity style={dynamicStyles.supportButton} onPress={() => setShowAppInfo(true)}>
+                        <Ionicons name="information-circle" size={16} color="#2196F3" />
+                        <Text style={dynamicStyles.supportButtonText}>{t('aboutTawfeer')}</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity style={dynamicStyles.supportButton} onPress={handleRateApp}>
+                        <Ionicons name="star" size={16} color="#2196F3" />
+                        <Text style={dynamicStyles.supportButtonText}>{t('rateApp')}</Text>
+                      </TouchableOpacity>
+                    </View>
+                  )}
+                  
+                  {/* Logout Button */}
+                  <TouchableOpacity style={dynamicStyles.logoutButton} onPress={handleLogout}>
+                    <Ionicons name="log-out" size={18} color="#fff" />
+                    <Text style={dynamicStyles.logoutButtonText}>{t('logout')}</Text>
+                  </TouchableOpacity>
+                </ScrollView>
+              </View>
+            </View>
+          </Modal>
+          
+          {/* Order Details Modal */}
+          <Modal visible={showOrderDetails} animationType="slide" transparent>
+            <View style={dynamicStyles.modalOverlay}>
+              <View style={dynamicStyles.orderDetailsModal}>
+                <View style={dynamicStyles.orderDetailsHeader}>
+                  <Text style={dynamicStyles.orderDetailsTitle}>
+                    {selectedOrder?.type === 'donation' ? 'Donation' : 
+                     selectedOrder?.type === 'request' ? 'Request' : 'Reuse'} Details
+                  </Text>
+                  <TouchableOpacity onPress={() => setShowOrderDetails(false)}>
+                    <Ionicons name="close" size={24} color={darkMode ? "#fff" : "#333"} />
+                  </TouchableOpacity>
+                </View>
+                
+                {selectedOrder && (
+                  <ScrollView style={dynamicStyles.orderDetailsContent}>
+                    {/* Process Tracker */}
+                    {renderProcessTracker(selectedOrder)}
+                    
+                    {/* Order Information */}
+                    <View style={dynamicStyles.orderDetailsSection}>
+                      <Text style={dynamicStyles.orderDetailsSectionTitle}>Order Information</Text>
+                      <Text style={dynamicStyles.orderDetailsText}>
+                        Order ID: #{selectedOrder.id}
+                      </Text>
+                      <Text style={dynamicStyles.orderDetailsText}>
+                        Date: {selectedOrder.date}
+                      </Text>
+                      <Text style={dynamicStyles.orderDetailsText}>
+                        Status: {selectedOrder.status.charAt(0).toUpperCase() + selectedOrder.status.slice(1)}
+                      </Text>
+                      {selectedOrder.coordinates && (
+                        <>
+                          <Text style={dynamicStyles.orderDetailsText}>
+                            Coordinates: {selectedOrder.coordinates.latitude.toFixed(4)}, {selectedOrder.coordinates.longitude.toFixed(4)}
+                          </Text>
+                        </>
+                      )}
+                    </View>
+                    
+                    {/* User Information */}
+                    <View style={dynamicStyles.orderDetailsSection}>
+                      <Text style={dynamicStyles.orderDetailsSectionTitle}>User Information</Text>
+                      <Text style={dynamicStyles.orderDetailsText}>
+                        Name: {selectedOrder.userName}
+                      </Text>
+                      <Text style={dynamicStyles.orderDetailsText}>
+                        Email: {selectedOrder.userEmail}
+                      </Text>
+                    </View>
+                    
+                    {/* Order Details */}
+                    <View style={dynamicStyles.orderDetailsSection}>
+                      <Text style={dynamicStyles.orderDetailsSectionTitle}>
+                        {selectedOrder.type === 'donation' ? 'Donation' : 
+                         selectedOrder.type === 'request' ? 'Request' : 'Reuse'} Details
+                      </Text>
+                      <Text style={dynamicStyles.orderDetailsText}>
+                        People: {selectedOrder.people}
+                      </Text>
+                      {selectedOrder.type === 'donation' && (
+                        <>
+                          <Text style={dynamicStyles.orderDetailsText}>
+                            Food Type: {selectedOrder.foodType}
+                          </Text>
+                          {selectedOrder.isCooked && (
+                            <>
+                              <Text style={dynamicStyles.orderDetailsText}>
+                                Is New: {selectedOrder.isNew ? 'Yes' : 'No'}
+                              </Text>
+                              <Text style={dynamicStyles.orderDetailsText}>
+                                Is Consumable: {selectedOrder.isConsumable ? 'Yes' : 'No'}
+                              </Text>
+                            </>
+                          )}
+                          {!selectedOrder.isCooked && (
+                            <>
+                              <Text style={dynamicStyles.orderDetailsText}>
+                                Uncooked Type: {selectedOrder.uncookedType}
+                              </Text>
+                              <Text style={dynamicStyles.orderDetailsText}>
+                                Quantity: {selectedOrder.uncookedQuantity} {selectedOrder.uncookedUnit}
+                              </Text>
+                            </>
+                          )}
+                        </>
+                      )}
+                      {selectedOrder.type === 'request' && (
+                        <Text style={dynamicStyles.orderDetailsText}>
+                          Reason: {selectedOrder.reason}
+                        </Text>
+                      )}
+                      {selectedOrder.type === 'reuse' && (
+                        <>
+                          <Text style={dynamicStyles.orderDetailsText}>
+                            Reuse Type: {selectedOrder.foodType}
+                          </Text>
+                          {selectedOrder.isCooked && (
+                            <>
+                              <Text style={dynamicStyles.orderDetailsText}>
+                                Is New: {selectedOrder.isNew ? 'Yes' : 'No'}
+                              </Text>
+                              <Text style={dynamicStyles.orderDetailsText}>
+                                Is Consumable: {selectedOrder.isConsumable ? 'Yes' : 'No'}
+                              </Text>
+                            </>
+                          )}
+                          {!selectedOrder.isCooked && (
+                            <>
+                              <Text style={dynamicStyles.orderDetailsText}>
+                                Uncooked Type: {selectedOrder.uncookedType}
+                              </Text>
+                              <Text style={dynamicStyles.orderDetailsText}>
+                                Quantity: {selectedOrder.uncookedQuantity} {selectedOrder.uncookedUnit}
+                              </Text>
+                            </>
+                          )}
+                        </>
+                      )}
+                      <Text style={dynamicStyles.orderDetailsText}>
+                        Location: {selectedOrder.location}
+                      </Text>
+                      
+                      {/* Description */}
+                      {selectedOrder.description && (
+                        <>
+                          <Text style={dynamicStyles.orderDetailsText}>
+                            Description: {selectedOrder.description}
+                          </Text>
+                        </>
+                      )}
+                    </View>
+                    
+                    {/* Image */}
+                    {selectedOrder.imageUri && (
+                      <View style={dynamicStyles.orderDetailsSection}>
+                        <Text style={dynamicStyles.orderDetailsSectionTitle}>Food Image</Text>
+                        <Image 
+                          source={{ uri: selectedOrder.imageUri }} 
+                          style={dynamicStyles.orderDetailsImage} 
+                        />
+                      </View>
+                    )}
+                    
+                    {/* Driver Information */}
+                    {(selectedOrder.status === 'approved' || selectedOrder.status === 'completed') && (
+                      <View style={dynamicStyles.orderDetailsSection}>
+                        <Text style={dynamicStyles.orderDetailsSectionTitle}>Driver Information</Text>
+                        <Text style={dynamicStyles.orderDetailsText}>
+                          Name: {selectedOrder.driverName || 'Not assigned'}
+                        </Text>
+                        <Text style={dynamicStyles.orderDetailsText}>
+                          Phone: {selectedOrder.driverPhone || 'Not assigned'}
+                        </Text>
+                        <Text style={dynamicStyles.orderDetailsText}>
+                          {selectedOrder.type === 'donation' 
+                            ? `Estimated Pickup: ${selectedOrder.estimatedPickup || 'Not scheduled'}`
+                            : selectedOrder.type === 'request'
+                            ? `Estimated Delivery: ${selectedOrder.estimatedDelivery || 'Not scheduled'}`
+                            : `Estimated Pickup: ${selectedOrder.estimatedPickup || 'Not scheduled'}`
+                          }
+                        </Text>
+                      </View>
+                    )}
+                    
+                    {/* Points Information */}
+                    {selectedOrder.type === 'donation' && selectedOrder.pointsAwarded && (
+                      <View style={dynamicStyles.orderDetailsSection}>
+                        <Text style={dynamicStyles.orderDetailsSectionTitle}>Points Earned</Text>
+                        <Text style={dynamicStyles.orderDetailsText}>
+                          You earned {selectedOrder.pointsEarned || 0} points for this completed donation!
+                        </Text>
+                      </View>
+                    )}
+                  </ScrollView>
+                )}
+              </View>
+            </View>
+          </Modal>
+          
+          {/* Message Details Modal */}
+          {renderMessageDetailsModal()}
+          
+          {/* AI Suggestion Modal */}
+          <Modal visible={showAISuggestionModal} animationType="slide" transparent>
+            <View style={dynamicStyles.modalOverlay}>
+              <View style={dynamicStyles.aiSuggestionModal}>
+                <View style={dynamicStyles.aiSuggestionModalHeader}>
+                  <Text style={dynamicStyles.aiSuggestionModalTitle}>AI Suggestion</Text>
+                  <TouchableOpacity onPress={() => setShowAISuggestionModal(false)}>
+                    <Ionicons name="close" size={24} color={darkMode ? "#fff" : "#333"} />
+                  </TouchableOpacity>
+                </View>
+                <View style={dynamicStyles.aiSuggestionModalContent}>
+                  <Text style={dynamicStyles.aiSuggestionText}>{aiSuggestion}</Text>
+                  <TouchableOpacity
+                    style={dynamicStyles.useSuggestionButton}
+                    onPress={() => {
+                      setDescription(aiSuggestion);
+                      setShowAISuggestionModal(false);
+                    }}
+                  >
+                    <Text style={dynamicStyles.useSuggestionButtonText}>Use This Suggestion</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </View>
+          </Modal>
+          
+          {/* Map Modal */}
+          <Modal visible={showMapModal} animationType="slide" transparent>
+            <View style={dynamicStyles.modalOverlay}>
+              <View style={dynamicStyles.mapModal}>
+                <View style={dynamicStyles.mapModalHeader}>
+                  <Text style={dynamicStyles.mapModalTitle}>Select Location</Text>
+                  <TouchableOpacity onPress={() => setShowMapModal(false)}>
+                    <Ionicons name="close" size={24} color={darkMode ? "#fff" : "#333"} />
+                  </TouchableOpacity>
+                </View>
+                
+                <View style={dynamicStyles.mapContainer}>
+                  {/* This would be replaced with an actual map component in a real app */}
+                  <View style={dynamicStyles.mapPlaceholder}>
+                    <Ionicons name="map" size={60} color="#ccc" />
+                    <Text style={dynamicStyles.mapPlaceholderText}>Map Integration</Text>
+                    <Text style={dynamicStyles.mapPlaceholderSubtext}>
+                      In a real implementation, this would show an interactive map
+                    </Text>
+                  </View>
+                </View>
+                
+                <View style={dynamicStyles.mapButtonsContainer}>
+                  <TouchableOpacity
+                    style={dynamicStyles.mapButtonOption}
+                    onPress={useCurrentLocation}
+                  >
+                    <Ionicons name="location-outline" size={20} color="#2196F3" />
+                    <Text style={dynamicStyles.mapButtonText}>Use Current Location</Text>
+                  </TouchableOpacity>
+                  
+                  <TouchableOpacity
+                    style={dynamicStyles.mapButtonOption}
+                    onPress={openGoogleMaps}
+                  >
+                    <Ionicons name="open-outline" size={20} color="#2196F3" />
+                    <Text style={dynamicStyles.mapButtonText}>Open Google Maps</Text>
+                  </TouchableOpacity>
+                </View>
+                
+                <View style={dynamicStyles.mapInputContainer}>
+                  <TextInput
+                    style={dynamicStyles.mapInput}
+                    placeholder="Search for a location..."
+                    value={mapSearchQuery}
+                    onChangeText={setMapSearchQuery}
+                    placeholderTextColor={darkMode ? '#888' : '#999'}
+                  />
+                  <TouchableOpacity
+                    style={dynamicStyles.mapConfirmButton}
+                    onPress={() => {
+                      if (mapSearchQuery) {
+                        setLocation(mapSearchQuery);
+                      }
+                      setShowMapModal(false);
+                    }}
+                  >
+                    <Text style={dynamicStyles.mapConfirmButtonText}>Confirm</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </View>
+          </Modal>
+          
+          {/* Approval Notification Modal */}
+          <Modal visible={showApprovalNotification} animationType="slide" transparent>
+            <View style={dynamicStyles.modalContainer}>
+              <View style={dynamicStyles.approvalNotificationModal}>
+                <Text style={dynamicStyles.approvalNotificationTitle}>Order Approved!</Text>
+                <Text style={dynamicStyles.approvalNotificationMessage}>
+                  {approvalMessage}
+                </Text>
+                <TouchableOpacity 
+                  style={dynamicStyles.approvalNotificationButton}
+                  onPress={() => setShowApprovalNotification(false)}
+                >
+                  <Text style={dynamicStyles.approvalNotificationButtonText}>OK</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </Modal>
+          
+          {/* Points Information Modal */}
+          <Modal visible={showPointsInfo} animationType="slide" transparent>
+            <View style={dynamicStyles.modalContainer}>
+              <View style={dynamicStyles.modalContent}>
+                <Text style={dynamicStyles.modalTitle}>🏅 {t('pointsSystem')}</Text>
+                <ScrollView style={dynamicStyles.scrollContent}>
+                  <Text style={dynamicStyles.pointsInfoText}>
+                    <Text style={dynamicStyles.boldText}>{t('whatArePoints')}</Text>
+                    {'\n'}{t('pointsDescription')}
+                  </Text>
+                  
+                  <Text style={dynamicStyles.pointsInfoText}>
+                    <Text style={dynamicStyles.boldText}>{t('howToEarnPoints')}</Text>
+                    {'\n'}• {t('donateFood')}: Points are awarded when drivers evaluate and complete your donations{'\n'}
+                    • {t('helpCommunity')}
+                    {'\n'}• {t('reduceFoodWaste')}
+                  </Text>
+                  
+                  <Text style={dynamicStyles.pointsInfoText}>
+                    <Text style={dynamicStyles.boldText}>{t('purpose')}</Text>
+                    {'\n'}• {t('trackImpact')}
+                    {'\n'}• {t('encourageParticipation')}
+                    {'\n'}• {t('buildCommunity')}
+                    {'\n'}• {t('supportUAEVision')}
+                  </Text>
+                  
+                  <Text style={dynamicStyles.pointsInfoText}>
+                    <Text style={dynamicStyles.boldText}>{t('benefits')}</Text>
+                    {'\n'}• {t('recognition')}
+                    {'\n'}• {t('motivation')}
+                    {'\n'}• {t('sustainabilityMovement')}
+                  </Text>
+                </ScrollView>
+                
+                <TouchableOpacity style={dynamicStyles.closeButton} onPress={() => setShowPointsInfo(false)}>
+                  <Text style={dynamicStyles.closeButtonText}>{t('close')}</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </Modal>
+          
+          {/* App Information Modal */}
+          <Modal visible={showAppInfo} animationType="slide" transparent>
+            <View style={dynamicStyles.modalContainer}>
+              <View style={[dynamicStyles.modalContent, {height: '85%'}]}>
+                <Text style={dynamicStyles.modalTitle}>📱 {t('tawfeerGuide')}</Text>
+                <ScrollView style={dynamicStyles.scrollContent} showsVerticalScrollIndicator={true}>
+                  
+                  <Text style={dynamicStyles.sectionTitle}>🎯 {t('aboutTawfeer')}</Text>
+                  <Text style={dynamicStyles.infoText}>
+                    {t('tawfeerDescription')}
+                  </Text>
+                  
+                  <Text style={dynamicStyles.sectionTitle}>🌟 {t('ourGoals')}</Text>
+                  <Text style={dynamicStyles.infoText}>
+                    • {t('reduceFoodWaste')}{'\n'}
+                    • {t('promoteDonation')}{'\n'}
+                    • {t('supportUAEVision')}{'\n'}
+                    • {t('useAI')}{'\n'}
+                    • {t('rewardUsers')}{'\n'}
+                    • {t('buildCommunity')}
+                  </Text>
+                  
+                  <Text style={dynamicStyles.sectionTitle}>📖 {t('howToUse')}</Text>
+                  
+                  <Text style={dynamicStyles.subTitle}>🍽️ {t('donatingFood')}:</Text>
+                  <Text style={dynamicStyles.infoText}>
+                    1. {t('clickDonateFood')}{'\n'}
+                    2. {t('fillPeopleServed')}{'\n'}
+                    3. {t('specifyFoodType')}{'\n'}
+                    4. {t('confirmSafe')}{'\n'}
+                    5. {t('uploadPhoto')}{'\n'}
+                    6. {t('enterLocationPhone')}{'\n'}
+                    7. {t('submitEarnPointsWhenCompleted')}
+                  </Text>
+                  
+                  <Text style={dynamicStyles.subTitle}>🙏 {t('requestingFood')}:</Text>
+                  <Text style={dynamicStyles.infoText}>
+                    1. {t('clickRequestFood')}{'\n'}
+                    2. {t('explainNeed')}{'\n'}
+                    3. {t('specifyPeople')}{'\n'}
+                    4. {t('enterContactInfo')}{'\n'}
+                    5. {t('submitRequest')}
+                  </Text>
+                  
+                  <Text style={dynamicStyles.subTitle}>♻️ {t('reusingFood')}:</Text>
+                  <Text style={dynamicStyles.infoText}>
+                    1. Click "Reuse Food" on the main screen{'\n'}
+                    2. Specify if the food is cooked or uncooked{'\n'}
+                    3. Fill in the details about your food{'\n'}
+                    4. Take a photo of the food you want to reuse{'\n'}
+                    5. Ask our AI assistant for creative reuse ideas{'\n'}
+                    6. Get personalized suggestions and recipes!
+                  </Text>
+                  
+                  <Text style={dynamicStyles.subTitle}>🤖 {t('aiAssistant')}:</Text>
+                  <Text style={dynamicStyles.infoText}>
+                    • {t('askAboutIngredients')}{'\n'}
+                    • {t('getRecipeSuggestions')}{'\n'}
+                    • {t('learnToCook')}{'\n'}
+                    • {t('availableEverywhere')}
+                  </Text>
+                  
+                  <Text style={dynamicStyles.subTitle}>⚙️ {t('settingsProfile')}:</Text>
+                  <Text style={dynamicStyles.infoText}>
+                    • {t('viewEditProfile')}{'\n'}
+                    • {t('checkHistory')}{'\n'}
+                    • {t('trackPoints')}{'\n'}
+                    • {t('customizeApp')}{'\n'}
+                    • {t('getHelp')}{'\n'}
+                    • {t('logout')}
+                  </Text>
+                  
+                  <Text style={dynamicStyles.sectionTitle}>🏆 {t('pointsSystem')}</Text>
+                  <Text style={dynamicStyles.infoText}>
+                    {t('pointsSystemWhenCompleted')}
+                  </Text>
+                  
+                  <Text style={dynamicStyles.sectionTitle}>🌍 {t('environmentalImpact')}</Text>
+                  <Text style={dynamicStyles.infoText}>
+                    {t('donationHelps')}:{'\n'}
+                    • {t('reduceEmissions')}{'\n'}
+                    • {t('saveResources')}{'\n'}
+                    • {t('supportFamilies')}{'\n'}
+                    • {t('buildSustainableUAE')}
+                  </Text>
+                  
+                  <Text style={dynamicStyles.sectionTitle}>👥 {t('userTypes')}</Text>
+                  <Text style={dynamicStyles.infoText}>
+                    • <Text style={dynamicStyles.boldText}>{t('household')}:</Text> {t('familiesIndividuals')}{'\n'}
+                    • <Text style={dynamicStyles.boldText}>{t('restaurant')}:</Text> {t('foodBusinesses')}{'\n'}
+                    • <Text style={dynamicStyles.boldText}>{t('supermarket')}:</Text> {t('groceryStores')}{'\n'}
+                    • <Text style={dynamicStyles.boldText}>{t('organization')}:</Text> {t('ngosCompanies')}{'\n'}
+                    • <Text style={dynamicStyles.boldText}>{t('guest')}:</Text> {t('temporaryAccess')}
+                  </Text>
+                  
+                  <View style={{height: 20}} />
+                </ScrollView>
+                
+                <TouchableOpacity style={dynamicStyles.closeButton} onPress={() => setShowAppInfo(false)}>
+                  <Text style={dynamicStyles.closeButtonText}>{t('close')}</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </Modal>
+          
+          {/* Food Cycle Step Modal */}
+          {renderFoodCycleStepModal()}
+          
+          {/* Rewards Modal */}
+          {renderRewardsModal()}
+          
+          {/* Reward Confirmation Modal */}
+          {renderRewardConfirmationModal()}
+          
+          {/* Reward Success Modal */}
+          {renderRewardSuccessModal()}
+        </ScrollView>
+      </ImageBackground>
+    </KeyboardAvoidingView>
+  );
+}
