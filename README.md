@@ -190,6 +190,22 @@ Tawfeer was built using the following technologies:
 * **ChatGPT-3.5 API:** Used for the AI food reuse feature, where users enter leftover or uncooked ingredients and receive a step-by-step recipe.
 * **GitHub:** Used to submit the public repository, including the README, source code, screenshots, documentation, and demo video link.
 
+## 15. Evidence and Validation
+
+The repository includes several files that help validate Tawfeer:
+
+Screenshots of the user interface.
+Screenshots of the food donation process.
+Screenshots of the food request process.
+Screenshots of the AI food reuse feature.
+Screenshots of the admin dashboard.
+Screenshots of the driver interface.
+Screenshots of the government dashboard.
+Demo videos showing the project workflow.
+Project documentation and business plan.
+Source code ZIP file.
+
+These materials show that Tawfeer is not only an idea, but a working prototype with clear features and a complete workflow.
 
 ## Demo Video
 
