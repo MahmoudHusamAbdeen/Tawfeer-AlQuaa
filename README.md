@@ -181,16 +181,15 @@ Future improvements can include:
 
 ## 14. Tools and Technologies Used
 
-* Mobile application interface.
-* Admin dashboard.
-* Driver dashboard.
-* Government dashboard.
-* Database for users, donations, requests, drivers, rewards, and sustainability data.
-* AI recipe generator.
-* Location services for donation pickup and delivery.
-* Image upload for donated food.
-* GitHub for source code and documentation.
-* Demo video to show the system workflow.
+Tawfeer was built using the following technologies:
+
+* **React Native:** Used to build the mobile application interface for users, admins, drivers, and government users.
+* **MongoDB:** Used as the database to store users, food donations, food requests, driver tasks, reward points, and dashboard statistics.
+* **Python:** Used to build the backend logic and connect the system features together.
+* **REST API:** Used to connect the mobile application with the database, admin dashboard, driver interface, government dashboard, and AI recipe feature.
+* **ChatGPT-3.5 API:** Used for the AI food reuse feature, where users enter leftover or uncooked ingredients and receive a step-by-step recipe.
+* **GitHub:** Used to submit the public repository, including the README, source code, screenshots, documentation, and demo video link.
+
 
 ##
 
