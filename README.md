@@ -191,11 +191,6 @@ Tawfeer was built using the following technologies:
 * **GitHub:** Used to submit the public repository, including the README, source code, screenshots, documentation, and demo video link.
 
 
-##
-
-##
-
-##
 ## Demo Video
 
 Watch the Tawfeer demo videos here:  
