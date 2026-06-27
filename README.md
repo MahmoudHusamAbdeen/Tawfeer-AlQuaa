@@ -194,19 +194,18 @@ Tawfeer was built using the following technologies:
 
 The repository includes several files that help validate Tawfeer:
 
-Screenshots of the user interface.
-Screenshots of the food donation process.
-Screenshots of the food request process.
-Screenshots of the AI food reuse feature.
-Screenshots of the admin dashboard.
-Screenshots of the driver interface.
-Screenshots of the government dashboard.
-Demo videos showing the project workflow.
-Project documentation and business plan.
-Source code ZIP file.
+- Screenshots of the user interface.
+- Screenshots of the food donation process.
+- Screenshots of the food request process.
+- Screenshots of the AI food reuse feature.
+- Screenshots of the admin dashboard.
+- Screenshots of the driver interface.
+- Screenshots of the government dashboard.
+- Demo videos showing the project workflow.
+- Project documentation and business plan.
+- Source code ZIP file.
 
 These materials show that Tawfeer is not only an idea, but a working prototype with clear features and a complete workflow.
-
 ## Demo Video
 
 Watch the Tawfeer demo videos here:  
